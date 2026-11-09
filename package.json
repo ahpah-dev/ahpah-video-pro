@@ -1,0 +1,23 @@
+{
+  "name": "ahpah-video-pro",
+  "version": "1.0.0",
+  "description": "AhPah Video Pro: a free, browser-based video editor with a Premiere Pro style layout.",
+  "private": false,
+  "license": "Unlicense",
+  "author": "AhPah",
+  "main": "index.html",
+  "scripts": {
+    "test": "node tests/edits-test.js",
+    "check": "node --check js/state.js && node --check js/edits.js && node --check js/bin.js && node --check js/timeline.js && node --check js/monitor.js && node --check js/main.js"
+  },
+  "keywords": [
+    "video-editor",
+    "editor",
+    "timeline",
+    "webm",
+    "unlicense"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

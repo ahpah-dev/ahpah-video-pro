@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AhPah Video Pro</title>
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">
+      <img src="assets/logo.svg" alt="" width="20" height="20">
+      <span>AhPah Video Pro</span>
+    </div>
+    <nav class="menubar" id="menubar"></nav>
+    <div class="workspace-tabs"><span class="ws active">Editing</span></div>
+    <div class="proj-name" id="projName"></div>
+  </header>
+
+  <main class="layout">
+
+    <!-- Project panel (media bin) -->
+    <section class="panel" id="binPanel">
+      <div class="panel-head">
+        <span class="tab active">Project: <b id="binProjName">Untitled Project</b></span>
+        <span class="grow"></span>
+        <button class="btn small" id="btnImport" title="Import media (Ctrl+I)">Import</button>
+      </div>
+      <div class="bin-list" id="binList"></div>
+      <div class="panel-foot"><span id="binCount">0 items</span><span class="muted">Double-click to open in Source</span></div>
+    </section>
+
+    <!-- Source monitor -->
+    <section class="panel" id="sourcePanel">
+      <div class="panel-head">
+        <span class="tab active">Source: <b id="srcName">(no clip)</b></span>
+      </div>
+      <div class="monitor">
+        <video id="srcVideo" playsinline></video>
+        <img id="srcImage" alt="">
+        <div id="srcPlaceholder" class="placeholder">Double-click a clip in the Project panel</div>
+      </div>
+      <div class="tc-row">
+        <span class="tc" id="srcTC">00:00:00:00</span>
+        <span class="io" id="srcInOut">In --:--:--:--   Out --:--:--:--</span>
+      </div>
+      <input type="range" id="srcScrub" min="0" max="1" step="0.001" value="0">
+      <div class="transport">
+        <button class="btn icon" id="srcBack" data-icon="stepBack" title="Previous frame"></button>
+        <button class="btn icon" id="srcPlay" data-icon="play" title="Play / pause source"></button>
+        <button class="btn icon" id="srcFwd" data-icon="stepFwd" title="Next frame"></button>
+        <span class="sep-v"></span>
+        <button class="btn" id="srcMarkIn" title="Mark In (I)">Mark In</button>
+        <button class="btn" id="srcMarkOut" title="Mark Out (O)">Mark Out</button>
+        <button class="btn" id="srcClear" title="Clear marks">Clear</button>
+        <span class="sep-v"></span>
+        <button class="btn" id="srcInsert" title="Insert at playhead (,)">Insert</button>
+        <button class="btn" id="srcOverwrite" title="Overwrite at playhead (.)">Overwrite</button>
+      </div>
+    </section>
+
+    <!-- Program monitor -->
+    <section class="panel" id="programPanel">
+      <div class="panel-head">
+        <span class="tab active">Program: Sequence 01</span>
+        <span class="grow"></span>
+        <span class="muted">1920×1080 · 30 fps</span>
+        <button class="btn small" id="btnExport" title="Export video (Ctrl+M)">Export</button>
+      </div>
+      <div class="monitor">
+        <canvas id="prog" width="1920" height="1080"></canvas>
+        <div class="export-overlay hidden" id="exportOverlay">
+          <div class="bar"><div id="exportFill"></div></div>
+          <div id="exportText">Exporting…</div>
+        </div>
+      </div>
+      <div class="tc-row">
+        <span class="tc" id="progTC">00:00:00:00</span>
+        <span class="muted" id="seqDur">Duration 00:00:00:00</span>
+      </div>
+      <div class="transport">
+        <button class="btn icon" id="pToStart" data-icon="toStart" title="Go to start (Home)"></button>
+        <button class="btn icon" id="pRev" data-icon="rev" title="Play reverse (J)"></button>
+        <button class="btn icon" id="pStepBack" data-icon="stepBack" title="Previous frame (Left)"></button>
+        <button class="btn icon" id="pPlay" data-icon="play" title="Play / pause (Space)"></button>
+        <button class="btn icon" id="pStepFwd" data-icon="stepFwd" title="Next frame (Right)"></button>
+        <button class="btn icon" id="pFwd" data-icon="ff" title="Play forward (L)"></button>
+        <button class="btn icon" id="pToEnd" data-icon="toEnd" title="Go to end (End)"></button>
+      </div>
+    </section>
+
+    <!-- Effect controls -->
+    <section class="panel" id="fxPanel">
+      <div class="panel-head">
+        <span class="tab active">Effect Controls</span>
+      </div>
+      <div class="fx-body" id="fxBody"></div>
+    </section>
+
+    <!-- Timeline -->
+    <section class="panel timeline" id="timeline">
+      <div class="tl-toolbar">
+        <span class="tc big" id="tlTC">00:00:00:00</span>
+        <span class="sep-v"></span>
+        <button class="btn tool" data-tool="select" title="Selection tool (V)">V</button>
+        <button class="btn tool" data-tool="razor" title="Razor tool (C)">C</button>
+        <button class="btn tool" data-tool="hand" title="Hand tool (H)">H</button>
+        <span class="sep-v"></span>
+        <button class="btn" id="tlSnap" title="Toggle snapping (S)">Snap</button>
+        <button class="btn" id="tlFit" title="Fit timeline (\)">Fit</button>
+        <span class="grow"></span>
+        <span class="muted">Zoom</span>
+        <input type="range" id="tlZoom" min="5" max="240" step="1" value="60" title="Timeline zoom">
+      </div>
+      <div class="tl-scroll" id="tlScroll">
+        <div class="tl-content" id="tlContent"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <div id="toasts"></div>
+
+  <div class="modal hidden" id="modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <b id="modalTitle"></b>
+        <button class="btn icon" id="modalClose" title="Close">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <input type="file" id="fileInput" multiple accept="video/*,audio/*,image/*" hidden>
+  <input type="file" id="openInput" accept=".ahpvp,application/json" hidden>
+
+  <script src="js/state.js"></script>
+  <script src="js/edits.js"></script>
+  <script src="js/bin.js"></script>
+  <script src="js/timeline.js"></script>
+  <script src="js/monitor.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
