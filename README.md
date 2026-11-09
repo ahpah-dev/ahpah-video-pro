@@ -10,6 +10,10 @@ Effects and Markers tabs, Source and Program monitors, Effect Controls and Metad
 and a multi-track timeline with a tool palette and master meters. It has effects, transitions, titles,
 keyframes and export to WebM or MP4, with no installer and no server.
 
+**Use it now in your browser: https://ahpah-dev.github.io/ahpah-video-pro/**
+
+You can also download the files and open `index.html` from your own computer.
+
 It is released into the **public domain under the [Unlicense](LICENSE)**. Use it, change
 it, sell it or bundle it however you like.
 
