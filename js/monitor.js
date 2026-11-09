@@ -99,10 +99,59 @@
     return n;
   }
 
-  // Source for the compositor: video element or still image for a media clip.
+  // The moment of the media file that clip c shows at the playhead.
+  function wantTime(c) {
+    return c.inPoint + AVP.srcOffset(c, AVP.clamp(S.playhead - c.start, 0, c.duration));
+  }
+
+  const frameReady = (el) => el.readyState >= 2 && el.videoWidth > 0;
+
+  /*
+   * Source for the compositor: video element or still image for a media clip.
+   * Splitting a clip or adding a transition gives a clip a new element that has not loaded or reached its
+   * moment yet. Drawing it then shows nothing (black) or the first frame of the file. So when this clip's
+   * own element is not ready, the picture comes from the best other element of the same file (the other
+   * half of a split is already at the right place), then from the last snapshot of this clip, and only
+   * then from the element itself.
+   */
   function getSource(c) {
     if (c.kind !== 'media') return null;
-    return ensureNode(c);
+    const n = ensureNode(c);
+    if (!n || !n.el || (AVP.offlineExport && AVP.offlineExport.active())) return n; // an export waits for the exact frame
+    const want = wantTime(c);
+    const miss = (x) => (frameReady(x.el) ? Math.abs(x.el.currentTime - want) : Infinity);
+    let best = n;
+    let bestMiss = miss(n);
+    if (bestMiss > 0.2) {
+      for (const o of nodes.values()) {
+        if (o === n || !o.el || o.mediaId !== n.mediaId) continue;
+        const e = miss(o);
+        if (e < bestMiss - 0.05) {
+          best = o;
+          bestMiss = e;
+        }
+      }
+    }
+    if (bestMiss === Infinity && n.snap) return { canvas: n.snap, el: null, img: null };
+    return best;
+  }
+
+  // Keeps a small, recent picture of the clip, to hold on screen while its element is busy.
+  function keepSnapshot(n, now) {
+    if (!n.el || !frameReady(n.el) || n.el.seeking || now - (n.snapAt || 0) < 250) return;
+    const w = Math.min(480, n.el.videoWidth);
+    const h = Math.max(1, Math.round((w * n.el.videoHeight) / n.el.videoWidth));
+    if (!n.snap) n.snap = document.createElement('canvas');
+    if (n.snap.width !== w || n.snap.height !== h) {
+      n.snap.width = w;
+      n.snap.height = h;
+    }
+    try {
+      n.snap.getContext('2d').drawImage(n.el, 0, 0, w, h);
+      n.snapAt = now;
+    } catch (err) {
+      /* the element cannot be drawn right now */
+    }
   }
 
   // Reverb room, shared by every send: a synthetic impulse response (see js/loudness.js).
@@ -298,6 +347,8 @@
   }
 
   // Keeps media elements in step with the playhead.
+  const PREWARM_SECONDS = 3; // how far ahead the next pictures are made ready
+  const PREWARM_MAX = 4; // at most this many at once
   let cleanedVersion = -1;
   function sync() {
     if (AVP.offlineExport && AVP.offlineExport.active()) return; // an offline export moves the media itself
@@ -353,6 +404,35 @@
 
     for (const [id, n] of nodes) {
       if (!activeIds.has(id) && n.el && !n.el.paused) n.el.pause();
+    }
+
+    // Get the next pictures ready before they are needed: load them and park each on its first frame, so a
+    // cut, a split or a transition does not start from an element that is still loading.
+    const dir = S.playing && S.playDir < 0 ? -1 : 1;
+    const coming = [];
+    const idx = AVP.trackIndex();
+    for (const id of S.trackOrder) {
+      const tr = idx[id];
+      if (!tr || tr.kind !== 'video') continue;
+      for (const { c, R } of tr.items) {
+        if (c.kind !== 'media' || activeIds.has(c.id) || !c.enabled) continue;
+        const gap = dir > 0 ? R.ext0 - t : t - R.ext1;
+        if (gap > 0 && gap < PREWARM_SECONDS) coming.push({ c, R, gap });
+      }
+    }
+    coming.sort((a, b) => a.gap - b.gap);
+    for (const { c, R } of coming.slice(0, PREWARM_MAX)) {
+      const n = ensureNode(c);
+      if (!n || !n.el) continue;
+      if (!n.el.paused) n.el.pause();
+      const at = dir > 0 ? R.ext0 : R.ext1;
+      const target = Math.max(0, c.inPoint + AVP.srcOffset(c, AVP.clamp(at - c.start, 0, c.duration)));
+      if (!n.el.seeking && Math.abs(n.el.currentTime - target) > 0.05) n.el.currentTime = target;
+    }
+    const now = performance.now();
+    for (const id of activeIds) {
+      const n = nodes.get(id);
+      if (n) keepSnapshot(n, now);
     }
   }
 

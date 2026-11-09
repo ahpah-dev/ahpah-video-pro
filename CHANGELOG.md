@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.25.1
+
+### Playback no longer blacks out after a split or a transition
+- Cause: every clip has its own video element. A split (or pasting, or undo) makes a new clip, and its
+  element only started loading when playback reached it. Until it had loaded and moved to its frame,
+  the compositor drew nothing (black) or the first frame of the file. Pressing play also showed a black
+  frame or two while the element restarted.
+- The next pictures are now made ready ahead of time: clips that start within 3 seconds (the nearest four)
+  are loaded and parked on their first frame, in either play direction, so the cut or transition starts
+  from a ready element.
+- If a clip's own element is still not ready, the picture comes from the best other element of the same
+  file (the other half of a split is already at the right moment), then from a recent small snapshot
+  of the clip, so nothing goes black. The export is unchanged: it still waits for the exact frame.
+- Checked with a 1080p clip split twice and with a split plus a Cross Dissolve, playing across the cuts:
+  0 black frames in 360 sampled frames. Before the fix the same test showed 7 black frames in 76 (at the
+  start of play and just after the cut).
+
 ## 1.25.0
 
 ### Speed ramps (time remapping)

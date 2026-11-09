@@ -291,6 +291,7 @@
       if (!s.img.complete || !s.img.naturalWidth) return null;
       return { src: s.img, w: s.img.naturalWidth, h: s.img.naturalHeight };
     }
+    if (s.canvas && s.canvas.width) return { src: s.canvas, w: s.canvas.width, h: s.canvas.height }; // a held snapshot
     if (s.el && s.el.readyState >= 2 && s.el.videoWidth) {
       return { src: s.el, w: s.el.videoWidth, h: s.el.videoHeight };
     }
