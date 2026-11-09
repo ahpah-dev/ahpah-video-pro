@@ -238,16 +238,11 @@
     return talking ? Math.pow(10, -snd.duck / 20) : 1;
   }
 
-  function hasLinkedAudio(c) {
-    return AVP.partners(c).some((p) => AVP.trackKind(p.track) === 'audio');
-  }
-
-  // A video clip whose sound is on a linked audio clip plays only its picture. The audio clip makes
-  // the sound, so the sound is never heard twice.
-  function pictureOnly(c) {
-    const m = AVP.findMedia(c.mediaId);
-    const tr = S.tracks[c.track];
-    return !!(m && m.type === 'video' && tr && tr.kind === 'video' && hasLinkedAudio(c));
+  // Video tracks make no sound. A video's sound is the audio clip made from the same file, on an audio
+  // track. So a clip on a video track is always silent here: unlinking, moving or overwriting its audio
+  // clip can never leave the video's own sound playing next to the audio clip.
+  function silentPicture(c) {
+    return !AVP.clipMakesSound(c);
   }
 
   // Volume for a clip right now: keyframed volume x constant-gain fades x track mute.
@@ -256,8 +251,7 @@
     if (!tr || !c.enabled || tr.muted) return 0;
     // Solo: when any audio track is soloed, the other audio tracks are silent.
     if (tr.kind === 'audio' && !tr.solo && Object.keys(S.tracks).some((id) => S.tracks[id].kind === 'audio' && S.tracks[id].solo)) return 0;
-    const m = AVP.findMedia(c.mediaId);
-    if (pictureOnly(c)) return 0;
+    if (silentPicture(c)) return 0;
     return Math.max(0, (AVP.propAt(c, 'volume', t) / 100) * AVP.audioRamp(R, t) * autoGain(c) * gateFactor(c, t) * duckFactor(c, t));
   }
 
@@ -320,9 +314,8 @@
         applySound(n, c);
       }
       if (!n.el) continue;
-      // Belt and braces: the element itself is muted when its sound is on the linked audio clip, so a
-      // video clip can never be heard alongside its audio clip, whatever the audio graph is doing.
-      const silent = pictureOnly(c);
+      // Belt and braces: the element of a picture clip is muted, whatever the audio graph is doing.
+      const silent = silentPicture(c);
       if (n.el.muted !== silent) n.el.muted = silent;
 
       const el = n.el;

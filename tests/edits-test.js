@@ -68,6 +68,15 @@ test('the nearest marker is found only within the tolerance', () => {
   S.markers = [];
 });
 
+test('only audio-track clips make sound; a video clip is picture only, linked or not', () => {
+  reset([clip('V1', 0, 4, 'L', 0), clip('A1', 0, 4, 'L', 0), clip('V2', 0, 4, null, 0)]);
+  assert.strictEqual(AVP.clipMakesSound(S.clips[0]), false, 'linked video clip is silent');
+  assert.strictEqual(AVP.clipMakesSound(S.clips[1]), true, 'audio clip makes the sound');
+  assert.strictEqual(AVP.clipMakesSound(S.clips[2]), false, 'unlinked video clip is silent too');
+  S.clips[1].linkId = null;
+  assert.strictEqual(AVP.clipMakesSound(S.clips[0]), false, 'after unlinking, the video still does not sound');
+});
+
 test('partners are clips with the same link that overlap in time', () => {
   reset([clip('V1', 0, 4, 'L', 0), clip('A1', 0, 4, 'L', 0), clip('A1', 6, 2, 'L', 0), clip('A2', 0, 4, null, 0)]);
   const v = S.clips[0];

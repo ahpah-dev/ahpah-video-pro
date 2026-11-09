@@ -123,6 +123,7 @@
     const isAudio = kind === 'audio' || (m && m.type === 'audio');
     const isTitle = c.kind === 'title';
     const linked = !isAudio && AVP.partners(c).length > 0;
+    const isPicture = !isAudio && kind === 'video' && !!m && m.type === 'video';
     const name = isTitle ? 'Title: ' + (c.text.text.split('\n')[0] || '') : m ? m.name : 'Missing media';
 
     let html =
@@ -142,8 +143,8 @@
 
     html +=
       `<div class="fx-group">${sectionHead('Audio')}` +
-      (linked
-        ? '<div class="fx-note">Sound comes from the linked audio clip.</div>'
+      (isPicture
+        ? '<div class="fx-note">A video clip is picture only. Its sound is the audio clip from the same file on an audio track' + (linked ? ' (linked to this clip).' : ', which is missing or has been removed.') + '</div>'
         : paramRow(c, 'volume', 'Volume', 100, { min: 0, max: 200, unit: '%' })) +
       `</div>`;
 

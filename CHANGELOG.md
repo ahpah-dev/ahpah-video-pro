@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.9.2
+
+### Audio stacking
+- Only audio clips make sound. A video clip is picture only, linked or not, so its own sound can
+  no longer play next to its audio clip. This happened after unlinking a video from its audio, or
+  after an audio clip was overwritten, and the sound doubled.
+- The Essential Sound panel on a video clip explains that its sound is the audio clip from the same
+  file, and says when that clip is missing.
+- Placing the same file on two audio tracks still plays both sounds, as in other editors. Move or
+  mute one of them to hear only one.
+
 ## 1.9.1
 
 ### Importing a video with sound

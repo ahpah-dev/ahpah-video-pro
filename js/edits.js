@@ -12,6 +12,12 @@
   const S = AVP.state;
   const EPS = AVP.EPS;
 
+  // Only clips on an audio track make sound. A video clip is picture only: its sound is the audio clip
+  // made from the same file. Linked or not, a clip on a video track never sounds.
+  AVP.clipMakesSound = function (c) {
+    return AVP.trackKind(c.track) === 'audio';
+  };
+
   AVP.partners = function (c) {
     if (!c || !c.linkId) return [];
     const end = c.start + c.duration;
