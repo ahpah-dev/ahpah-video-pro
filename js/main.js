@@ -1,6 +1,6 @@
 /*
- * AhPah Video Pro - app bootstrap: menus, keyboard shortcuts, Effect Controls,
- * project save/open and modal dialogs.
+ * AhPah Video Pro - app bootstrap: action registry, menu bar, keyboard shortcuts,
+ * sequence / export / speed dialogs, and wiring between the modules.
  */
 (function () {
   'use strict';
@@ -34,13 +34,6 @@
     ff:
       '<svg viewBox="0 0 16 16"><path d="M1.5 3v10L8 8z" fill="currentColor"/>' +
       '<path d="M8 3v10L14.5 8z" fill="currentColor"/></svg>',
-    eye:
-      '<svg viewBox="0 0 16 16"><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z" ' +
-      'fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="2.2" fill="currentColor"/></svg>',
-    speaker:
-      '<svg viewBox="0 0 16 16"><path d="M2.5 6h2.2L8 3.2v9.6L4.7 10H2.5z" fill="currentColor"/>' +
-      '<path d="M10.6 5.6a3.4 3.4 0 0 1 0 4.8M12.6 3.6a6.2 6.2 0 0 1 0 8.8" fill="none" ' +
-      'stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
   };
 
   AVP.icons = {
@@ -50,192 +43,31 @@
     },
   };
 
-  /* ---------- refresh helpers ---------- */
+  /* ---------- refresh ---------- */
 
   function refreshPanels() {
-    renderProps();
+    AVP.panels.renderControls();
     AVP.monitor.sync();
   }
 
   function refresh() {
+    AVP.touchData();
     refreshPanels();
     AVP.timeline.render();
     AVP.monitor.draw();
+    updateTitle();
+    if (AVP.project) AVP.project.touch();
   }
 
   AVP.refreshPanels = refreshPanels;
   AVP.refresh = refresh;
 
   function updateTitle() {
-    $('#projName').textContent = S.projectName;
+    $('#projName').textContent = S.projectName + `  ·  ${S.seqWidth}×${S.seqHeight} · ${S.fps} fps`;
     document.title = `${S.projectName} - AhPah Video Pro`;
-    AVP.bin.renderBin();
   }
 
-  /* ---------- Effect Controls panel ---------- */
-
-  function currentClip() {
-    return S.selection.map((id) => AVP.findClip(id)).find(Boolean) || null;
-  }
-
-  function sliderRow(prop, label, value, min, max, unit) {
-    return (
-      `<label class="fx-row"><span>${label}</span>` +
-      `<input type="range" data-prop="${prop}" min="${min}" max="${max}" step="1" value="${value}">` +
-      `<output>${value}${unit}</output></label>`
-    );
-  }
-
-  function renderProps() {
-    const body = $('#fxBody');
-    if (!body) return;
-    const c = currentClip();
-    if (!c) {
-      body.innerHTML = '<div class="hint">Select a clip on the timeline to adjust its effects.</div>';
-      return;
-    }
-    const m = AVP.findMedia(c.mediaId);
-    const isAudio = S.tracks[c.track].kind === 'audio';
-    const linked = !isAudio && AVP.partners(c).length > 0;
-    body.innerHTML =
-      `<div class="fx-head"><div class="fx-name">${AVP.esc(m ? m.name : 'Missing media')}</div>` +
-      `<div class="fx-sub">${c.track} · ${AVP.fmtTC(c.start)} to ${AVP.fmtTC(c.start + c.duration)}</div></div>` +
-      (isAudio
-        ? ''
-        : `<div class="fx-group"><div class="fx-title">Motion</div>` +
-          sliderRow('opacity', 'Opacity', Math.round(c.opacity * 100), 0, 100, '%') +
-          sliderRow('scale', 'Scale', Math.round(c.scale * 100), 10, 300, '%') +
-          `</div>`) +
-      `<div class="fx-group"><div class="fx-title">Audio</div>` +
-      (linked
-        ? '<div class="fx-note">Sound comes from the linked audio clip on A1.</div>'
-        : sliderRow('volume', 'Volume', Math.round(c.volume * 100), 0, 200, '%')) +
-      `</div>` +
-      `<div class="fx-group"><div class="fx-title">Timing</div>` +
-      `<div class="fx-kv"><span>Source in</span><b>${AVP.fmtTC(c.inPoint)}</b></div>` +
-      `<div class="fx-kv"><span>Duration</span><b>${AVP.fmtTC(c.duration)}</b></div></div>` +
-      `<div class="fx-group"><button class="btn" id="fxReset">Reset effects</button></div>`;
-
-    body.querySelectorAll('input[type=range]').forEach((inp) => {
-      inp.addEventListener('pointerdown', () => AVP.pushUndo());
-      inp.addEventListener('input', () => {
-        const cur = currentClip();
-        if (!cur) return;
-        const v = +inp.value;
-        const prop = inp.dataset.prop;
-        if (prop === 'opacity') cur.opacity = v / 100;
-        else if (prop === 'scale') cur.scale = v / 100;
-        else cur.volume = v / 100;
-        inp.nextElementSibling.textContent = v + '%';
-        AVP.timeline.render();
-        AVP.monitor.sync();
-      });
-    });
-    const reset = $('#fxReset');
-    if (reset) {
-      reset.addEventListener('click', () => {
-        const cur = currentClip();
-        if (!cur) return;
-        AVP.pushUndo();
-        cur.opacity = 1;
-        cur.scale = 1;
-        cur.volume = 1;
-        refresh();
-      });
-    }
-  }
-
-  /* ---------- project save / open ---------- */
-
-  function newProject() {
-    if ((S.clips.length || S.media.length) && !confirm('Start a new project? Unsaved changes will be lost.')) return;
-    S.media.forEach((m) => m.url && URL.revokeObjectURL(m.url));
-    S.projectName = 'Untitled Project';
-    S.media = [];
-    S.clips = [];
-    S.tracks = AVP.defaultTracks();
-    S.selection = [];
-    S.playhead = 0;
-    S.binSelected = null;
-    S.srcMediaId = null;
-    S.srcIn = null;
-    S.srcOut = null;
-    S.target = { video: 'V1', audio: 'A1' };
-    AVP.monitor.stop();
-    AVP.resetHistory();
-    const sv = $('#srcVideo');
-    sv.pause();
-    sv.removeAttribute('src');
-    sv.load();
-    $('#srcImage').removeAttribute('src');
-    $('#srcName').textContent = '(no clip)';
-    $('#srcPlaceholder').classList.remove('hidden');
-    updateTitle();
-    refresh();
-    AVP.bin.updateSourceUI();
-  }
-
-  function saveProject() {
-    const name = prompt('Project name', S.projectName);
-    if (name === null) return;
-    S.projectName = name.trim() || 'Untitled Project';
-    const data = {
-      app: AVP.APP_NAME,
-      format: 'ahpvp',
-      version: 1,
-      name: S.projectName,
-      fps: S.fps,
-      width: S.seqWidth,
-      height: S.seqHeight,
-      tracks: S.tracks,
-      clips: S.clips,
-      media: S.media.map((m) => ({ id: m.id, name: m.name, type: m.type, duration: m.duration, width: m.width, height: m.height })),
-    };
-    AVP.download(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), AVP.safeName(S.projectName) + '.ahpvp');
-    updateTitle();
-    AVP.toast('Project saved. Media files are not stored in the project: keep them on disk.');
-  }
-
-  async function openProject(file) {
-    let data = null;
-    try {
-      data = JSON.parse(await file.text());
-    } catch (err) {
-      data = null;
-    }
-    if (!data || data.format !== 'ahpvp' || !Array.isArray(data.clips)) {
-      return AVP.toast('That file is not an AhPah Video Pro project');
-    }
-    const old = S.media;
-    S.projectName = data.name || 'Untitled Project';
-    S.fps = data.fps || 30;
-    S.seqWidth = data.width || 1920;
-    S.seqHeight = data.height || 1080;
-    const cv = $('#prog');
-    cv.width = S.seqWidth;
-    cv.height = S.seqHeight;
-    S.media = (data.media || []).map((dm) => {
-      const existing = old.find((x) => x.url && x.name === dm.name && x.type === dm.type);
-      if (existing) return Object.assign({}, existing, { id: dm.id });
-      return Object.assign({}, dm, { url: null, offline: true, thumb: null, error: false });
-    });
-    S.tracks = Object.assign(AVP.defaultTracks(), data.tracks || {});
-    S.clips = data.clips;
-    S.selection = [];
-    S.playhead = 0;
-    AVP.monitor.stop();
-    AVP.resetHistory();
-    updateTitle();
-    refresh();
-    const missing = S.media.filter((m) => m.offline).length;
-    AVP.toast(
-      missing
-        ? `${missing} media file${missing > 1 ? 's are' : ' is'} offline. Import them again with the same file name.`
-        : 'Project opened'
-    );
-  }
-
-  /* ---------- actions (shared by menus and shortcuts) ---------- */
+  /* ---------- sequence, work area, snapping ---------- */
 
   function toggleSnap() {
     S.snap = !S.snap;
@@ -243,80 +75,314 @@
     AVP.toast(`Snapping ${S.snap ? 'on' : 'off'}`);
   }
 
-  function showModal(title, html) {
-    $('#modalTitle').textContent = title;
-    $('#modalBody').innerHTML = html;
-    $('#modal').classList.remove('hidden');
+  // edge: 'in' | 'out' | 'clear'
+  function setWork(edge, t) {
+    AVP.pushUndo();
+    const time = t != null ? AVP.snapFrame(t) : AVP.snapFrame(S.playhead);
+    if (edge === 'clear') {
+      S.workIn = null;
+      S.workOut = null;
+    } else if (edge === 'in') {
+      S.workIn = time;
+      if (S.workOut != null && S.workOut <= time) S.workOut = null;
+    } else {
+      S.workOut = time;
+      if (S.workIn != null && S.workIn >= time) S.workIn = null;
+    }
+    AVP.refresh();
   }
 
-  function closeModal() {
-    $('#modal').classList.add('hidden');
+  function sequenceDialog() {
+    const presets = [
+      { v: '1920x1080x30', label: 'HD 1080p · 30 fps' },
+      { v: '1920x1080x25', label: 'HD 1080p · 25 fps' },
+      { v: '1920x1080x24', label: 'Cinema 1080p · 24 fps' },
+      { v: '1920x1080x60', label: 'HD 1080p · 60 fps' },
+      { v: '1280x720x30', label: 'HD 720p · 30 fps' },
+      { v: '3840x2160x30', label: 'UHD 4K · 30 fps' },
+      { v: '1080x1920x30', label: 'Vertical 9:16 · 30 fps' },
+      { v: '1080x1080x30', label: 'Square 1:1 · 30 fps' },
+    ];
+    const cur = `${S.seqWidth}x${S.seqHeight}x${S.fps}`;
+    const preset = presets.some((p) => p.v === cur) ? cur : 'custom';
+    AVP.dialog.form({
+      title: 'Sequence settings',
+      intro: 'Changing the frame size or rate affects the whole sequence. Clips keep their timing.',
+      fields: [
+        { k: 'preset', label: 'Preset', type: 'select', value: preset, options: presets.concat([{ v: 'custom', label: 'Custom' }]) },
+        { k: 'width', label: 'Width (px)', type: 'number', value: S.seqWidth, min: 16, max: 7680, step: 1 },
+        { k: 'height', label: 'Height (px)', type: 'number', value: S.seqHeight, min: 16, max: 4320, step: 1 },
+        { k: 'fps', label: 'Frame rate', type: 'select', value: String(S.fps), options: [24, 25, 30, 50, 60].map((f) => ({ v: String(f), label: f + ' fps' })) },
+      ],
+      ok: 'Apply',
+      onChange: (vals, set) => {
+        const p = presets.find((x) => x.v === vals.preset);
+        if (p) {
+          const [w, h, f] = p.v.split('x');
+          set('width', w);
+          set('height', h);
+          set('fps', f);
+        }
+      },
+      onOk: (v) => {
+        const w = Math.round(v.width) || S.seqWidth;
+        const h = Math.round(v.height) || S.seqHeight;
+        AVP.pushUndo();
+        S.fps = parseInt(v.fps, 10) || S.fps;
+        AVP.monitor.resize(w, h);
+        AVP.refresh();
+        AVP.toast(`Sequence set to ${w}×${h} at ${S.fps} fps`, 'ok');
+      },
+    });
+  }
+
+  function speedDialog(ids) {
+    const list = (ids || S.selection).map(AVP.findClip).filter(Boolean);
+    if (!list.length) return AVP.toast('Select a clip first', 'warn');
+    AVP.dialog.form({
+      title: 'Speed / Duration',
+      intro: 'Changes how fast the clip plays. 200% plays twice as fast and halves the duration.',
+      fields: [{ k: 'speed', label: 'Speed (%)', type: 'number', value: Math.round((list[0].speed || 1) * 100), min: 10, max: 1600, step: 5 }],
+      ok: 'Apply',
+      onOk: (v) => AVP.edit.setSpeed(list.map((c) => c.id), (v.speed || 100) / 100),
+    });
+  }
+
+  function exportDialog() {
+    const mp4 = typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('video/mp4');
+    const hasWork = S.workIn != null || S.workOut != null;
+    AVP.dialog.form({
+      title: 'Export video',
+      intro: 'Export runs in real time: a 10-minute sequence takes about 10 minutes. Keep this tab visible.',
+      fields: [
+        {
+          k: 'format',
+          label: 'Format',
+          type: 'select',
+          value: 'webm',
+          options: [{ v: 'webm', label: 'WebM (VP9 / VP8 with Opus)' }].concat(
+            mp4 ? [{ v: 'mp4', label: 'MP4 (H.264 with AAC)' }] : [{ v: 'mp4', label: 'MP4 (not supported in this browser)' }]
+          ),
+        },
+        {
+          k: 'size',
+          label: 'Frame size',
+          type: 'select',
+          value: `${S.seqWidth}x${S.seqHeight}`,
+          options: [
+            { v: `${S.seqWidth}x${S.seqHeight}`, label: `Sequence (${S.seqWidth}×${S.seqHeight})` },
+            { v: '1920x1080', label: '1920×1080' },
+            { v: '1280x720', label: '1280×720' },
+            { v: '854x480', label: '854×480' },
+          ],
+        },
+        {
+          k: 'bitrate',
+          label: 'Quality',
+          type: 'select',
+          value: '8',
+          options: [
+            { v: '4', label: 'Smaller file (4 Mbps)' },
+            { v: '8', label: 'Balanced (8 Mbps)' },
+            { v: '16', label: 'High (16 Mbps)' },
+          ],
+        },
+        {
+          k: 'range',
+          label: 'Range',
+          type: 'select',
+          value: hasWork ? 'work' : 'sequence',
+          options: [
+            { v: 'sequence', label: 'Entire sequence' },
+            { v: 'work', label: 'Work area (set with [ and ])' },
+          ],
+        },
+      ],
+      ok: 'Export',
+      onOk: (v) => {
+        const [w, h] = v.size.split('x').map(Number);
+        AVP.monitor.startExport({ format: v.format, width: w, height: h, bitrate: +v.bitrate, range: v.range });
+      },
+    });
+  }
+
+  function newProject() {
+    if ((S.clips.length || S.media.length) && !confirm('Start a new project? Unsaved changes will be lost.')) return;
+    S.media.forEach((m) => m.url && URL.revokeObjectURL(m.url));
+    const fresh = AVP.newTrackSet();
+    AVP.monitor.stop();
+    AVP.project.apply({
+      format: 'ahpvp',
+      name: 'Untitled Project',
+      fps: 30,
+      width: 1920,
+      height: 1080,
+      tracks: fresh.tracks,
+      trackOrder: fresh.order,
+      clips: [],
+      markers: [],
+      media: [],
+    });
+    S.media = [];
+    S.binSelected = null;
+    S.srcMediaId = null;
+    S.srcIn = null;
+    S.srcOut = null;
+    S.target = { video: 'V1', audio: 'A1' };
+    const sv = $('#srcVideo');
+    sv.pause();
+    sv.removeAttribute('src');
+    sv.load();
+    $('#srcImage').removeAttribute('src');
+    $('#srcName').textContent = '(no clip)';
+    $('#srcPlaceholder').classList.remove('hidden');
+    AVP.resetHistory();
+    refresh();
+    AVP.bin.updateSourceUI();
+  }
+
+  function newTitle() {
+    AVP.edit.placeTitle({ track: S.target.video, start: S.playhead, preset: 0, mode: 'overwrite' });
+  }
+
+  function defaultTransition() {
+    const list = AVP.selectedClips();
+    if (!list.length) return AVP.toast('Select a clip first', 'warn');
+    list.forEach((c) => {
+      const kind = S.tracks[c.track].kind;
+      AVP.edit.applyTransition(c.id, kind === 'audio' ? 'audio-fade' : 'dissolve', 'start');
+    });
+  }
+
+  function selectAll() {
+    AVP.select(
+      S.clips.map((c) => c.id),
+      false
+    );
+    refresh();
+  }
+
+  function deselectAll() {
+    AVP.select([], false);
+    refresh();
+  }
+
+  function setPreview(scale) {
+    AVP.monitor.setPreviewScale(scale);
+    refreshPanels();
+  }
+
+  function previewItems() {
+    return [
+      { label: 'Full (best quality)', checked: S.previewScale === 1, action: () => setPreview(1) },
+      { label: 'Half (recommended)', checked: S.previewScale === 0.5, action: () => setPreview(0.5) },
+      { label: 'Quarter (fastest)', checked: S.previewScale === 0.25, action: () => setPreview(0.25) },
+    ];
+  }
+
+  function toggleSafe() {
+    S.showSafe = !S.showSafe;
+    AVP.monitor.draw();
+    AVP.toast(`Safe margins ${S.showSafe ? 'shown' : 'hidden'}`);
   }
 
   function shortcutsHtml() {
     const rows = [
       ['Space', 'Play / pause'],
       ['J / K / L', 'Reverse / stop / forward'],
-      ['Left / Right', 'Previous / next frame (Shift: 1 second)'],
-      ['Up / Down', 'Previous / next edit point'],
+      ['← / →', 'Previous / next frame (Shift: 1 second)'],
+      ['↑ / ↓', 'Previous / next edit point or marker'],
       ['Home / End', 'Go to start / end'],
       ['I / O', 'Mark In / Out in the Source monitor'],
       [', (comma)', 'Insert Source range at playhead'],
       ['. (period)', 'Overwrite Source range at playhead'],
       ['V / C / H', 'Selection / Razor / Hand tool'],
       ['S', 'Toggle snapping'],
-      ['Ctrl+K', 'Split selected clips (or all tracks) at playhead'],
-      ['Delete', 'Delete selected clips (Shift: ripple delete)'],
+      ['M', 'Add marker at playhead'],
+      ['[ / ]', 'Set work area In / Out at playhead'],
+      ['Ctrl+K', 'Cut selected clips (or every track) at playhead'],
+      ['Ctrl+C / V / D', 'Copy / paste at playhead / duplicate'],
+      ['Ctrl+Shift+D', 'Apply default transition to selected clips'],
+      ['Ctrl+R', 'Speed / duration of selected clips'],
+      ['Ctrl+T', 'New title at playhead'],
+      ['Delete / Shift+Delete', 'Delete / ripple delete'],
       ['Ctrl+Z / Ctrl+Shift+Z', 'Undo / redo'],
-      ['Ctrl+A / Ctrl+Shift+A', 'Select all / deselect all clips'],
-      ['= / -  and  \\', 'Zoom timeline in / out / to fit'],
-      ['Ctrl+I / Ctrl+O / Ctrl+S', 'Import / open project / save project'],
-      ['Ctrl+M', 'Export video (WebM)'],
-      ['Esc', 'Stop an export or close a menu'],
+      ['Ctrl+A / Ctrl+Shift+A', 'Select all / deselect all'],
+      ['= / - / \\', 'Zoom timeline in / out / to fit'],
+      ['Ctrl+I / O / S / N', 'Import / open / save project / new project'],
+      ['Ctrl+M', 'Export video'],
+      ['Ctrl+Shift+E', 'Export frame at playhead as PNG'],
+      ['Esc', 'Stop an export, close a menu or dialog'],
     ];
     return (
       '<table class="kb">' +
       rows.map((r) => `<tr><td><kbd>${AVP.esc(r[0])}</kbd></td><td>${AVP.esc(r[1])}</td></tr>`).join('') +
-      '</table><p class="muted">Tip: drag clips from the Project panel onto a track. Hold Shift while dropping to insert.</p>'
+      '</table><p class="muted">Right-click the timeline, clips, tracks, markers, the Project panel and the monitors for more commands. Drag effects and transitions from the Effects tab.</p>'
     );
   }
+
+  AVP.main = {
+    toggleSnap,
+    setWork,
+    sequenceDialog,
+    speedDialog,
+    exportDialog,
+    newProject,
+    refresh,
+  };
+
+  /* ---------- menus ---------- */
 
   const ACTIONS = {
     newProject: () => newProject(),
     import: () => $('#fileInput').click(),
     open: () => $('#openInput').click(),
-    save: () => saveProject(),
-    export: () => AVP.monitor.startExport(),
+    save: () => AVP.project.save(),
+    export: () => exportDialog(),
+    exportFrame: () => AVP.monitor.exportFrame(),
     undo: () => AVP.undo(),
     redo: () => AVP.redo(),
+    cut: () => AVP.edit.splitAtPlayhead(),
+    copy: () => AVP.edit.copySelection(),
+    paste: () => AVP.edit.paste(S.playhead, 'overwrite'),
+    duplicate: () => AVP.edit.duplicate(),
     deleteSelection: () => AVP.edit.deleteSelection(false),
     rippleDelete: () => AVP.edit.deleteSelection(true),
-    selectAll: () => {
-      AVP.select(S.clips.map((c) => c.id), false);
-      refresh();
-    },
-    deselectAll: () => {
-      AVP.select([], false);
-      refresh();
-    },
-    splitAtPlayhead: () => AVP.edit.splitAtPlayhead(),
+    selectAll: () => selectAll(),
+    deselectAll: () => deselectAll(),
+    speed: () => speedDialog(),
+    newTitle: () => newTitle(),
+    defaultTransition: () => defaultTransition(),
     insert: () => AVP.bin.placeFromSource(true),
     overwrite: () => AVP.bin.placeFromSource(false),
     markIn: () => AVP.bin.markIn(),
     markOut: () => AVP.bin.markOut(),
-    toggleSnap: () => toggleSnap(),
+    link: () => AVP.edit.link(S.selection.slice()),
+    unlink: () => AVP.edit.unlink(S.selection.slice()),
+    enable: () => AVP.edit.toggleEnabled(S.selection.slice()),
+    addMarker: () => AVP.edit.addMarker(S.playhead),
+    workIn: () => setWork('in'),
+    workOut: () => setWork('out'),
+    workClear: () => setWork('clear'),
+    sequence: () => sequenceDialog(),
     playPause: () => AVP.monitor.playPause(),
     goStart: () => AVP.monitor.goTo(0),
     goEnd: () => AVP.monitor.goTo(AVP.seqEnd()),
+    toggleSnap: () => toggleSnap(),
     zoomIn: () => AVP.timeline.zoomBy(1.25),
     zoomOut: () => AVP.timeline.zoomBy(0.8),
     fit: () => AVP.timeline.fit(),
-    shortcuts: () => showModal('Keyboard shortcuts', shortcutsHtml()),
+    safe: () => toggleSafe(),
+    addVideoTrack: () => AVP.edit.addTrack('video'),
+    addAudioTrack: () => AVP.edit.addTrack('audio'),
+    panelControls: () => AVP.panels.setPanel('controls'),
+    panelEffects: () => AVP.panels.setPanel('effects'),
+    shortcuts: () => AVP.dialog.info('Keyboard shortcuts', shortcutsHtml()),
     about: () =>
-      showModal(
+      AVP.dialog.info(
         'About AhPah Video Pro',
         `<div class="about"><img src="assets/logo.svg" alt=""><div><h3>AhPah Video Pro ${AVP.VERSION}</h3>` +
-          '<p>A free, open-source, public-domain video editor with a Premiere-style layout.</p>' +
+          '<p>A free, open-source, public-domain video editor with a Premiere-style layout, effects, transitions and titles.</p>' +
           '<p class="muted">Released under the Unlicense. Not affiliated with Adobe.</p></div></div>'
       ),
   };
@@ -331,7 +397,8 @@
         { label: 'Open Project…', key: 'Ctrl+O', action: 'open' },
         { label: 'Save Project…', key: 'Ctrl+S', action: 'save' },
         { sep: true },
-        { label: 'Export Video (WebM)…', key: 'Ctrl+M', action: 'export' },
+        { label: 'Export Video…', key: 'Ctrl+M', action: 'export' },
+        { label: 'Export Frame as PNG…', key: 'Ctrl+Shift+E', action: 'exportFrame' },
       ],
     },
     {
@@ -340,8 +407,13 @@
         { label: 'Undo', key: 'Ctrl+Z', action: 'undo' },
         { label: 'Redo', key: 'Ctrl+Shift+Z', action: 'redo' },
         { sep: true },
-        { label: 'Delete', key: 'Delete', action: 'deleteSelection' },
-        { label: 'Ripple Delete', key: 'Shift+Delete', action: 'rippleDelete' },
+        { label: 'Cut at Playhead', key: 'Ctrl+K', action: 'cut' },
+        { label: 'Copy', key: 'Ctrl+C', action: 'copy' },
+        { label: 'Paste at Playhead', key: 'Ctrl+V', action: 'paste' },
+        { label: 'Duplicate', key: 'Ctrl+D', action: 'duplicate' },
+        { sep: true },
+        { label: 'Delete', key: 'Del', action: 'deleteSelection' },
+        { label: 'Ripple Delete', key: 'Shift+Del', action: 'rippleDelete' },
         { sep: true },
         { label: 'Select All', key: 'Ctrl+A', action: 'selectAll' },
         { label: 'Deselect All', key: 'Ctrl+Shift+A', action: 'deselectAll' },
@@ -350,22 +422,33 @@
     {
       label: 'Clip',
       items: [
-        { label: 'Split at Playhead', key: 'Ctrl+K', action: 'splitAtPlayhead' },
+        { label: 'Speed / Duration…', key: 'Ctrl+R', action: 'speed' },
+        { label: 'Enable / Disable', action: 'enable' },
+        { label: 'Link Selected', action: 'link' },
+        { label: 'Unlink', action: 'unlink' },
+        { sep: true },
+        { label: 'Apply Default Transition', key: 'Ctrl+Shift+D', action: 'defaultTransition' },
+        { label: 'New Title at Playhead', key: 'Ctrl+T', action: 'newTitle' },
+        { sep: true },
         { label: 'Insert Source at Playhead', key: ',', action: 'insert' },
         { label: 'Overwrite Source at Playhead', key: '.', action: 'overwrite' },
-        { sep: true },
         { label: 'Mark Source In', key: 'I', action: 'markIn' },
         { label: 'Mark Source Out', key: 'O', action: 'markOut' },
-        { sep: true },
-        { label: 'Toggle Snapping', key: 'S', action: 'toggleSnap' },
       ],
     },
     {
       label: 'Sequence',
       items: [
+        { label: 'Sequence Settings…', action: 'sequence' },
+        { sep: true },
         { label: 'Play / Pause', key: 'Space', action: 'playPause' },
         { label: 'Go to Start', key: 'Home', action: 'goStart' },
         { label: 'Go to End', key: 'End', action: 'goEnd' },
+        { sep: true },
+        { label: 'Add Marker', key: 'M', action: 'addMarker' },
+        { label: 'Set Work Area In', key: '[', action: 'workIn' },
+        { label: 'Set Work Area Out', key: ']', action: 'workOut' },
+        { label: 'Clear Work Area', action: 'workClear' },
       ],
     },
     {
@@ -374,65 +457,60 @@
         { label: 'Zoom In', key: '=', action: 'zoomIn' },
         { label: 'Zoom Out', key: '-', action: 'zoomOut' },
         { label: 'Fit Timeline to Window', key: '\\', action: 'fit' },
+        { label: 'Toggle Snapping', key: 'S', action: 'toggleSnap' },
+        { label: 'Show Safe Margins', action: 'safe' },
+        { label: 'Playback Resolution', submenu: 'preview' },
+        { sep: true },
+        { label: 'Add Video Track', action: 'addVideoTrack' },
+        { label: 'Add Audio Track', action: 'addAudioTrack' },
+      ],
+    },
+    {
+      label: 'Window',
+      items: [
+        { label: 'Effect Controls', action: 'panelControls' },
+        { label: 'Effects', action: 'panelEffects' },
       ],
     },
     {
       label: 'Help',
       items: [
         { label: 'Keyboard Shortcuts', key: '?', action: 'shortcuts' },
-        { label: 'About AhPah Video Pro', key: '', action: 'about' },
+        { label: 'About AhPah Video Pro', action: 'about' },
       ],
     },
   ];
 
-  let openMenuIdx = -1;
-
-  function closeMenus() {
-    document.querySelectorAll('.menu-dd').forEach((d) => d.remove());
-    document.querySelectorAll('.menu-title.open').forEach((b) => b.classList.remove('open'));
-    openMenuIdx = -1;
-  }
-
-  function openMenu(idx, btn) {
-    closeMenus();
-    const menu = MENUS[idx];
-    const dd = document.createElement('div');
-    dd.className = 'menu-dd';
-    dd.innerHTML = menu.items
-      .map((it) =>
-        it.sep
-          ? '<div class="sep"></div>'
-          : `<div class="mi" data-action="${it.action}"><span>${AVP.esc(it.label)}</span><span class="kbd">${AVP.esc(it.key)}</span></div>`
-      )
-      .join('');
-    const r = btn.getBoundingClientRect();
-    dd.style.left = r.left + 'px';
-    dd.style.top = r.bottom + 'px';
-    document.body.appendChild(dd);
-    dd.addEventListener('click', (e) => {
-      const mi = e.target.closest('.mi');
-      if (!mi) return;
-      closeMenus();
-      const fn = ACTIONS[mi.dataset.action];
-      if (fn) fn();
+  function menuItems(list) {
+    return list.map((it) => {
+      if (it.sep) return { sep: true };
+      if (it.submenu === 'preview') return { label: 'Playback Resolution', children: previewItems() };
+      return { label: it.label, key: it.key, action: () => ACTIONS[it.action]() };
     });
-    btn.classList.add('open');
-    openMenuIdx = idx;
   }
 
-  function buildMenus() {
+  function buildMenuBar() {
     const bar = $('#menubar');
     bar.innerHTML = MENUS.map((m, i) => `<button class="menu-title" data-menu="${i}">${m.label}</button>`).join('');
+    let openIdx = -1;
     bar.addEventListener('click', (e) => {
       const b = e.target.closest('.menu-title');
       if (!b) return;
-      if (openMenuIdx === +b.dataset.menu) closeMenus();
-      else openMenu(+b.dataset.menu, b);
+      if (openIdx === +b.dataset.menu && AVP.menu.isOpen()) {
+        AVP.menu.close();
+        openIdx = -1;
+      } else {
+        openIdx = +b.dataset.menu;
+        AVP.menu.dropdown(b, menuItems(MENUS[openIdx].items));
+      }
     });
     bar.addEventListener('mouseover', (e) => {
-      if (openMenuIdx < 0) return;
+      if (!AVP.menu.isOpen()) return;
       const b = e.target.closest('.menu-title');
-      if (b && +b.dataset.menu !== openMenuIdx) openMenu(+b.dataset.menu, b);
+      if (b && +b.dataset.menu !== openIdx) {
+        openIdx = +b.dataset.menu;
+        AVP.menu.dropdown(b, menuItems(MENUS[openIdx].items));
+      }
     });
   }
 
@@ -448,25 +526,36 @@
     const k = e.key;
 
     if (k === 'Escape') {
-      closeMenus();
-      if (!$('#modal').classList.contains('hidden')) closeModal();
+      AVP.menu.close();
+      if (AVP.dialog.isOpen()) AVP.dialog.close();
       if (AVP.monitor.isExporting()) AVP.monitor.finishExport();
       return;
     }
 
     if (mod) {
-      const map = {
-        z: e.shiftKey ? 'redo' : 'undo',
-        y: 'redo',
-        k: 'splitAtPlayhead',
-        a: e.shiftKey ? 'deselectAll' : 'selectAll',
-        s: 'save',
-        o: 'open',
-        i: 'import',
-        m: 'export',
-        n: 'newProject',
-      };
-      const name = map[k.toLowerCase()];
+      const lk = k.toLowerCase();
+      let name = null;
+      if (e.shiftKey && lk === 'z') name = 'redo';
+      else if (e.shiftKey && lk === 'a') name = 'deselectAll';
+      else if (e.shiftKey && lk === 'd') name = 'defaultTransition';
+      else if (e.shiftKey && lk === 'e') name = 'exportFrame';
+      else
+        name = {
+          z: 'undo',
+          y: 'redo',
+          k: 'cut',
+          a: 'selectAll',
+          c: 'copy',
+          v: 'paste',
+          d: 'duplicate',
+          r: 'speed',
+          t: 'newTitle',
+          s: 'save',
+          o: 'open',
+          i: 'import',
+          m: 'export',
+          n: 'newProject',
+        }[lk];
       if (name) {
         e.preventDefault();
         ACTIONS[name]();
@@ -554,6 +643,16 @@
       case 'S':
         toggleSnap();
         return;
+      case 'm':
+      case 'M':
+        ACTIONS.addMarker();
+        return;
+      case '[':
+        setWork('in');
+        return;
+      case ']':
+        setWork('out');
+        return;
       case '=':
       case '+':
         ACTIONS.zoomIn();
@@ -570,17 +669,76 @@
     }
   }
 
+  /* ---------- context menus for the monitors and the app background ---------- */
+
+  function programMenu() {
+    return [
+      { label: 'Play / Pause', key: 'Space', action: () => AVP.monitor.playPause() },
+      { label: 'Go to Start', key: 'Home', action: () => AVP.monitor.goTo(0) },
+      { label: 'Go to End', key: 'End', action: () => AVP.monitor.goTo(AVP.seqEnd()) },
+      { sep: true },
+      { label: 'Add Marker at Playhead', key: 'M', action: () => AVP.edit.addMarker(S.playhead) },
+      { label: 'Set Work Area In / Out', children: [
+        { label: 'Work In here', key: '[', action: () => setWork('in') },
+        { label: 'Work Out here', key: ']', action: () => setWork('out') },
+        { label: 'Clear Work Area', action: () => setWork('clear') },
+      ] },
+      { sep: true },
+      { label: 'Export Frame as PNG…', key: 'Ctrl+Shift+E', action: () => AVP.monitor.exportFrame() },
+      { label: 'Export Video…', key: 'Ctrl+M', action: () => exportDialog() },
+      { label: 'Sequence Settings…', action: () => sequenceDialog() },
+      { label: S.showSafe ? 'Hide Safe Margins' : 'Show Safe Margins', action: () => toggleSafe() },
+      { label: 'Playback Resolution', children: previewItems() },
+    ];
+  }
+
+  function fallbackMenu() {
+    return [
+      { label: 'Import Media…', key: 'Ctrl+I', action: () => $('#fileInput').click() },
+      { label: 'Paste at Playhead', key: 'Ctrl+V', action: () => AVP.edit.paste(S.playhead, 'overwrite') },
+      { label: 'Select All', key: 'Ctrl+A', action: selectAll },
+      { sep: true },
+      { label: 'Sequence Settings…', action: sequenceDialog },
+      { label: 'Export Video…', key: 'Ctrl+M', action: exportDialog },
+      { label: 'Keyboard Shortcuts', key: '?', action: ACTIONS.shortcuts },
+    ];
+  }
+
+  function wireContextMenus() {
+    $('#programPanel').addEventListener('contextmenu', (e) => {
+      if (e.target.closest('.transport')) return;
+      e.preventDefault();
+      AVP.menu.show(e.clientX, e.clientY, programMenu());
+    });
+    $('#fxBody').addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      AVP.menu.show(e.clientX, e.clientY, [
+        { label: 'Open Effects library', action: () => AVP.panels.setPanel('effects') },
+        { label: 'Show Effect Controls', action: () => AVP.panels.setPanel('controls') },
+      ]);
+    });
+    document.addEventListener('contextmenu', (e) => {
+      const tag = e.target && e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return; // keep native copy / paste in fields
+      e.preventDefault();
+      if (!AVP.menu.isOpen()) AVP.menu.show(e.clientX, e.clientY, fallbackMenu());
+    });
+  }
+
   /* ---------- startup ---------- */
 
   function init() {
     document.querySelectorAll('[data-icon]').forEach(AVP.icons.apply);
-    buildMenus();
+    AVP.menu.init();
+    AVP.dialog.init();
+    buildMenuBar();
 
     AVP.bin.init();
     AVP.timeline.init();
     AVP.monitor.init();
+    AVP.panels.init();
 
-    $('#btnExport').addEventListener('click', () => AVP.monitor.startExport());
+    $('#btnExport').addEventListener('click', () => exportDialog());
     $('#pToStart').addEventListener('click', () => AVP.monitor.goTo(0));
     $('#pRev').addEventListener('click', () => AVP.monitor.play(-1));
     $('#pStepBack').addEventListener('click', () => AVP.monitor.stepFrames(-1));
@@ -588,25 +746,26 @@
     $('#pStepFwd').addEventListener('click', () => AVP.monitor.stepFrames(1));
     $('#pFwd').addEventListener('click', () => AVP.monitor.play(1));
     $('#pToEnd').addEventListener('click', () => AVP.monitor.goTo(AVP.seqEnd()));
+    $('#btnSeq').addEventListener('click', () => sequenceDialog());
+    const pr = $('#previewSel');
+    if (pr) {
+      pr.value = String(S.previewScale);
+      pr.addEventListener('change', () => setPreview(parseFloat(pr.value)));
+    }
 
     $('#openInput').addEventListener('change', (e) => {
       const f = e.target.files[0];
-      if (f) openProject(f);
+      if (f) AVP.project.openFile(f);
       e.target.value = '';
     });
 
     document.addEventListener('keydown', onKey);
-    document.addEventListener('mousedown', (e) => {
-      if (!e.target.closest('.menu-dd, .menu-title')) closeMenus();
-    });
     document.addEventListener('mouseup', (e) => {
       const b = e.target.closest && e.target.closest('button');
       if (b) b.blur();
     });
-    $('#modalClose').addEventListener('click', closeModal);
-    $('#modal').addEventListener('click', (e) => {
-      if (e.target.id === 'modal') closeModal();
-    });
+    wireContextMenus();
+
     window.addEventListener('beforeunload', (e) => {
       if (S.clips.length) {
         e.preventDefault();
@@ -616,6 +775,7 @@
 
     updateTitle();
     refresh();
+    AVP.project.offerRecovery();
   }
 
   document.addEventListener('DOMContentLoaded', init);

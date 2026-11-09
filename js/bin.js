@@ -1,5 +1,5 @@
 /*
- * AhPah Video Pro - Project panel (media bin), import, and Source monitor.
+ * AhPah Video Pro - Project panel (media bin), import, waveforms and the Source monitor.
  */
 (function () {
   'use strict';
@@ -13,8 +13,16 @@
   const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'];
   const TYPE_LABEL = { video: 'Video', audio: 'Audio', image: 'Image' };
   const DEFAULT_IMAGE_SECONDS = 5;
+  const MAX_DECODE_BYTES = 400 * 1024 * 1024; // larger files skip waveform decoding
 
-  let srcVideo, srcImage, srcScrub, srcTC, srcInOut, srcName, srcPlaceholder, srcPlay;
+  let srcVideo;
+  let srcImage;
+  let srcScrub;
+  let srcTC;
+  let srcInOut;
+  let srcName;
+  let srcPlaceholder;
+  let srcPlay;
 
   function detectType(file) {
     const t = file.type || '';
@@ -47,32 +55,91 @@
     }
   }
 
+  // Draws a waveform image (one column per bucket) for the timeline clips.
+  function makeWave(buffer) {
+    const data = buffer.getChannelData(0);
+    const cols = Math.max(64, Math.min(4096, Math.round(buffer.duration * 40)));
+    const per = Math.max(1, Math.floor(data.length / cols));
+    const cv = document.createElement('canvas');
+    cv.width = cols;
+    cv.height = 64;
+    const g = cv.getContext('2d');
+    // Light, semi-transparent bars so the clip colour stays readable underneath.
+    g.fillStyle = 'rgba(255,255,255,0.42)';
+    for (let x = 0; x < cols; x++) {
+      let peak = 0;
+      const start = x * per;
+      for (let i = 0; i < per; i++) {
+        const v = Math.abs(data[start + i] || 0);
+        if (v > peak) peak = v;
+      }
+      const h = Math.max(1, peak * 26);
+      g.fillRect(x, (64 - h) / 2, 1, h);
+    }
+    return cv.toDataURL('image/png');
+  }
+
+  // One CSS rule per media item holds its waveform image; clips just reference the class.
+  function setWaveRule(media) {
+    let style = document.getElementById('wave-styles');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'wave-styles';
+      document.head.appendChild(style);
+    }
+    style.appendChild(document.createTextNode(`.clip.wv-${media.id}{background-image:url("${media.wave}")}`));
+  }
+
+  // Decodes the audio track once so the timeline can draw it. The decoded length also
+  // corrects media whose container did not report a duration.
+  function decodeWave(media, file) {
+    if (media.type === 'image') return Promise.resolve();
+    const ac = AVP.monitor.audioContext();
+    if (!ac || !file || file.size > MAX_DECODE_BYTES) return Promise.resolve();
+    return file
+      .arrayBuffer()
+      .then((buf) => ac.decodeAudioData(buf))
+      .then((audio) => {
+        media.wave = makeWave(audio);
+        setWaveRule(media);
+        media.hasAudio = true;
+        if (media.durationGuess && audio.duration > 0) {
+          const old = media.duration;
+          media.duration = audio.duration;
+          media.durationGuess = false;
+          // Clips that were placed with the guessed length take the real length.
+          S.clips.forEach((c) => {
+            if (c.mediaId === media.id && c.inPoint === 0 && Math.abs(c.duration - old) < 1e-3) c.duration = media.duration;
+          });
+          AVP.touchData();
+        }
+        renderBin();
+        AVP.refresh();
+      })
+      .catch(() => {
+        media.hasAudio = media.type === 'video' ? false : media.hasAudio;
+      });
+  }
+
   // Reads duration / size and grabs a thumbnail frame for one media item.
+  // The clip keeps the file's full length. Recorded WebM files often report no duration;
+  // those are measured by seeking to the end, and the decoded audio is the fallback.
   function probe(media) {
     return new Promise((resolve) => {
-      let finished = false;
-      const done = () => {
-        if (!finished) {
-          finished = true;
-          resolve(media);
-        }
-      };
-      const timer = setTimeout(done, 8000);
+      const finish = () => resolve(media);
 
       if (media.type === 'image') {
         const img = new Image();
         img.onload = () => {
-          clearTimeout(timer);
           media.width = img.naturalWidth;
           media.height = img.naturalHeight;
           media.duration = DEFAULT_IMAGE_SECONDS;
           media.thumb = makeThumb(img, media.width, media.height);
-          done();
+          finish();
         };
         img.onerror = () => {
-          clearTimeout(timer);
           media.error = true;
-          done();
+          finish();
         };
         img.src = media.url;
         return;
@@ -81,34 +148,54 @@
       const el = document.createElement(media.type === 'audio' ? 'audio' : 'video');
       el.preload = 'metadata';
       el.muted = true;
+      let thumbTimer = null;
       el.onerror = () => {
-        clearTimeout(timer);
         media.error = true;
-        done();
+        finish();
       };
-      const afterMetadata = () => {
-        media.duration = isFinite(el.duration) && el.duration > 0 ? el.duration : 10;
-        if (media.type !== 'video') {
-          clearTimeout(timer);
-          return done();
-        }
+
+      const haveDuration = () => isFinite(el.duration) && el.duration > 0;
+
+      const withThumbnail = () => {
+        if (media.type !== 'video') return finish();
         media.width = el.videoWidth;
         media.height = el.videoHeight;
+        thumbTimer = setTimeout(finish, 4000);
         el.onseeked = () => {
-          clearTimeout(timer);
+          clearTimeout(thumbTimer);
           media.thumb = makeThumb(el, media.width, media.height);
-          done();
+          finish();
         };
         el.currentTime = Math.min(1, media.duration / 2);
       };
+
       el.onloadedmetadata = () => {
-        if (isFinite(el.duration)) return afterMetadata();
-        // Some recorded WebM files report Infinity: seek to the end to learn the real length.
-        el.ontimeupdate = () => {
-          el.ontimeupdate = null;
+        if (haveDuration()) {
+          media.duration = el.duration;
+          return withThumbnail();
+        }
+        // No duration in the container: seek past the end so the browser measures it.
+        let settled = false;
+        const settle = (guess) => {
+          if (settled) return;
+          settled = true;
+          if (guess) {
+            media.duration = 10;
+            media.durationGuess = true;
+          } else {
+            media.duration = el.duration;
+            media.durationGuess = false;
+          }
           el.currentTime = 0;
-          afterMetadata();
+          withThumbnail();
         };
+        el.addEventListener('durationchange', function onDur() {
+          if (haveDuration()) {
+            el.removeEventListener('durationchange', onDur);
+            settle(false);
+          }
+        });
+        setTimeout(() => settle(true), 6000);
         el.currentTime = 1e101;
       };
       el.src = media.url;
@@ -122,7 +209,7 @@
     for (const f of list) {
       const type = detectType(f);
       if (!type) {
-        AVP.toast(`Skipped unsupported file: ${f.name}`);
+        AVP.toast(`Skipped unsupported file: ${f.name}`, 'warn');
         continue;
       }
       // Re-link an offline item from a re-opened project instead of duplicating it.
@@ -131,7 +218,7 @@
         offline.url = URL.createObjectURL(f);
         offline.offline = false;
         count++;
-        jobs.push(probe(offline).then(renderBin));
+        jobs.push(probe(offline).then(() => decodeWave(offline, f)));
         continue;
       }
       const media = {
@@ -143,16 +230,20 @@
         width: 0,
         height: 0,
         thumb: null,
+        wave: null,
+        hasAudio: type !== 'image',
+        durationGuess: false,
+        size: f.size,
         error: false,
         offline: false,
       };
       S.media.push(media);
       count++;
-      jobs.push(probe(media).then(renderBin));
+      jobs.push(probe(media).then(() => decodeWave(media, f)));
     }
     renderBin();
     if (count) {
-      AVP.toast(`Imported ${count} file${count > 1 ? 's' : ''}`);
+      AVP.toast(`Imported ${count} file${count > 1 ? 's' : ''}`, 'ok');
       Promise.all(jobs).then(renderBin);
     }
     return count;
@@ -215,30 +306,31 @@
       srcVideo.src = m.url;
       srcScrub.disabled = false;
       srcVideo.currentTime = 0;
+      if (m.type === 'audio') srcPlaceholder.classList.remove('hidden');
     }
-    if (m.type === 'audio') srcPlaceholder.classList.remove('hidden');
     renderBin();
     updateSourceUI();
   }
 
-  function updateSourceUI() {
+  function sourceTime() {
     const m = AVP.findMedia(S.srcMediaId);
-    const t = m && m.type !== 'image' ? srcVideo.currentTime || 0 : 0;
+    return m && m.type !== 'image' ? srcVideo.currentTime || 0 : 0;
+  }
+
+  function updateSourceUI() {
+    if (!srcTC) return;
+    const m = AVP.findMedia(S.srcMediaId);
+    const t = sourceTime();
     srcTC.textContent = AVP.fmtTC(t);
     if (m && m.type !== 'image' && isFinite(srcVideo.duration)) {
       srcScrub.max = srcVideo.duration;
       srcScrub.value = t;
     }
     srcInOut.textContent =
-      `In ${S.srcIn != null ? AVP.fmtTC(S.srcIn) : '--:--:--:--'}   ` +
+      `In ${S.srcIn != null ? AVP.fmtTC(S.srcIn) : '--:--:--:--'}  ` +
       `Out ${S.srcOut != null ? AVP.fmtTC(S.srcOut) : '--:--:--:--'}`;
     srcPlay.dataset.icon = srcVideo.paused ? 'play' : 'pause';
     AVP.icons.apply(srcPlay);
-  }
-
-  function sourceTime() {
-    const m = AVP.findMedia(S.srcMediaId);
-    return m && m.type !== 'image' ? srcVideo.currentTime || 0 : 0;
   }
 
   function stepSource(n) {
@@ -250,9 +342,9 @@
 
   function togglePlay() {
     const m = AVP.findMedia(S.srcMediaId);
-    if (!m || m.type === 'image') return;
+    if (!m || m.type === 'image') return AVP.toast('Double-click a clip in the Project panel to load it');
     AVP.monitor.stop();
-    if (srcVideo.paused) srcVideo.play().catch(() => {});
+    if (srcVideo.paused) srcVideo.play().catch(() => AVP.toast('The browser would not play this file', 'error'));
     else srcVideo.pause();
   }
 
@@ -278,15 +370,15 @@
   }
 
   // Insert (ripple) or overwrite the marked source range at the playhead.
-  function placeFromSource(insert) {
+  function placeFromSource(insert, at) {
     const m = AVP.findMedia(S.srcMediaId);
-    if (!m) return AVP.toast('Load a clip in the Source monitor first (double-click it in the Project panel)');
+    if (!m) return AVP.toast('Load a clip in the Source monitor first (double-click it in the Project panel)', 'warn');
     const full = m.type === 'image' ? DEFAULT_IMAGE_SECONDS : m.duration;
     const inP = S.srcIn != null ? S.srcIn : 0;
     const outP = S.srcOut != null ? S.srcOut : full;
     const len = outP - inP;
-    if (len < 1 / S.fps) return AVP.toast('Mark In and Out so the range is at least one frame');
-    const start = AVP.snapFrame(S.playhead);
+    if (len < 1 / S.fps) return AVP.toast('Mark In and Out so the range is at least one frame', 'warn');
+    const start = AVP.snapFrame(at != null ? at : S.playhead);
     AVP.monitor.stop();
     AVP.edit.placeMedia({
       mediaId: m.id,
@@ -298,7 +390,56 @@
       mode: insert ? 'insert' : 'overwrite',
     });
     S.playhead = start + len;
-    AVP.toast(`${insert ? 'Inserted' : 'Overwrote'} ${m.name}`);
+    AVP.toast(`${insert ? 'Inserted' : 'Overwrote'} ${m.name}`, 'ok');
+  }
+
+  /* ---------- context menus ---------- */
+
+  function mediaMenu(id) {
+    const m = AVP.findMedia(id);
+    if (!m) return [];
+    return [
+      { label: 'Open in Source Monitor', action: () => loadSource(id) },
+      { label: 'Insert at Playhead', key: ',', action: () => (loadSource(id), placeFromSource(true)) },
+      { label: 'Overwrite at Playhead', key: '.', action: () => (loadSource(id), placeFromSource(false)) },
+      { sep: true },
+      { label: 'Rename…', action: () => AVP.dialog.form({
+          title: 'Rename media',
+          fields: [{ k: 'name', label: 'Name', type: 'text', value: m.name }],
+          ok: 'Rename',
+          onOk: (v) => {
+            m.name = v.name.trim() || m.name;
+            renderBin();
+            AVP.refresh();
+          },
+        }) },
+      { label: 'Media Info…', action: () => AVP.dialog.info('Media info', mediaInfoHtml(m)) },
+      { sep: true },
+      {
+        label: 'Remove from Project',
+        action: () => {
+          const used = S.clips.filter((c) => c.mediaId === id).length;
+          const msg = used ? ` It is used by ${used} clip${used > 1 ? 's' : ''} on the timeline; those clips will be removed too.` : '';
+          if (confirm(`Remove "${m.name}" from the project?${msg}`)) AVP.edit.removeMedia(id);
+        },
+      },
+    ];
+  }
+
+  function mediaInfoHtml(m) {
+    const rows = [
+      ['Type', TYPE_LABEL[m.type]],
+      ['Duration', AVP.fmtTC(m.duration)],
+      ['Size', m.width ? `${m.width} × ${m.height}` : '—'],
+      ['File size', m.size ? (m.size / 1048576).toFixed(1) + ' MB' : '—'],
+      ['Audio', m.type === 'image' ? 'none' : m.hasAudio ? 'yes' : 'no'],
+      ['Status', m.offline ? 'Offline' : m.error ? 'Error' : 'Online'],
+    ];
+    return (
+      '<table class="kb">' +
+      rows.map((r) => `<tr><td>${r[0]}</td><td>${AVP.esc(r[1])}</td></tr>`).join('') +
+      '</table>'
+    );
   }
 
   function hasFiles(e) {
@@ -332,6 +473,19 @@
       e.dataTransfer.setData('application/x-avp-media', it.dataset.media);
       e.dataTransfer.effectAllowed = 'copy';
     });
+    list.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      const it = e.target.closest('.bin-item');
+      if (it) {
+        S.binSelected = it.dataset.media;
+        renderBin();
+        AVP.menu.show(e.clientX, e.clientY, mediaMenu(it.dataset.media));
+      } else {
+        AVP.menu.show(e.clientX, e.clientY, [
+          { label: 'Import Media…', key: 'Ctrl+I', action: () => $('#fileInput').click() },
+        ]);
+      }
+    });
 
     const panel = $('#binPanel');
     panel.addEventListener('dragover', (e) => {
@@ -358,6 +512,9 @@
     srcVideo.addEventListener('play', updateSourceUI);
     srcVideo.addEventListener('pause', updateSourceUI);
     srcVideo.addEventListener('ended', updateSourceUI);
+    srcVideo.addEventListener('error', () => {
+      if (S.srcMediaId) AVP.toast('The browser cannot decode this file in the Source monitor', 'error');
+    });
     srcScrub.addEventListener('input', () => {
       if (isFinite(srcVideo.duration)) srcVideo.currentTime = +srcScrub.value;
     });
@@ -370,6 +527,25 @@
     $('#srcClear').addEventListener('click', clearMarks);
     $('#srcInsert').addEventListener('click', () => placeFromSource(true));
     $('#srcOverwrite').addEventListener('click', () => placeFromSource(false));
+
+    $('#srcPanel').addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      const has = !!AVP.findMedia(S.srcMediaId);
+      AVP.menu.show(e.clientX, e.clientY, [
+        { label: has ? 'Play / Pause' : 'Play / Pause (load a clip first)', action: togglePlay, disabled: !has },
+        { label: 'Step Back one frame', key: '←', action: () => stepSource(-1), disabled: !has },
+        { label: 'Step Forward one frame', key: '→', action: () => stepSource(1), disabled: !has },
+        { sep: true },
+        { label: 'Mark In', key: 'I', action: markIn, disabled: !has },
+        { label: 'Mark Out', key: 'O', action: markOut, disabled: !has },
+        { label: 'Clear Marks', action: clearMarks, disabled: !has },
+        { sep: true },
+        { label: 'Insert at Playhead', key: ',', action: () => placeFromSource(true), disabled: !has },
+        { label: 'Overwrite at Playhead', key: '.', action: () => placeFromSource(false), disabled: !has },
+        { sep: true },
+        { label: 'Export Frame at Playhead as PNG…', action: () => AVP.monitor.exportFrame() },
+      ]);
+    });
 
     renderBin();
     updateSourceUI();
@@ -387,5 +563,6 @@
     stepSource,
     togglePlay,
     updateSourceUI,
+    mediaMenu,
   };
 })();

@@ -1,11 +1,12 @@
 /*
- * AhPah Video Pro - Program monitor: playback engine, compositing and WebM export.
+ * AhPah Video Pro - Program monitor: playback engine, preview drawing, PNG frame and
+ * WebM / MP4 export.
  *
- * Each timeline clip gets its own HTMLMediaElement (created lazily). Every frame we
- * look at the playhead, make sure the clips under it are playing or seeked to the
- * right position, and draw the video tracks onto a 1920x1080 canvas. Audio from each
- * element goes through a Web Audio gain node so volume and mute can be applied, and
- * the same graph feeds a MediaStream destination that the exporter records.
+ * Each media clip gets its own HTMLMediaElement (created lazily). Every tick we look at
+ * the playhead, keep the clips under it playing or seeked to the right source position,
+ * and ask the compositor (render.js) to draw the frame. Audio from each element goes
+ * through a Web Audio gain node, and the same graph feeds a MediaStream that the exporter
+ * records.
  */
 (function () {
   'use strict';
@@ -13,19 +14,20 @@
   const AVP = window.AVP;
   const S = AVP.state;
   const EPS = AVP.EPS;
-
   const $ = (sel) => document.querySelector(sel);
 
   let canvas = null;
   let ctx = null;
   let audioCtx = null;
   let streamDest = null;
-  const nodes = new Map(); // clipId -> { el?, img?, gain?, src?, mediaId }
+  const nodes = new Map(); // clipId -> { el?, img?, gain?, src?, mediaId, warned }
   const imageCache = new Map(); // mediaId -> HTMLImageElement
   let lastTs = 0;
   let recorder = null;
   let recChunks = [];
+  let exportStart = 0;
   let exportEnd = 0;
+  let savedSize = null;
 
   /* ---------- audio graph ---------- */
 
@@ -33,7 +35,7 @@
     if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
   }
 
-  function getNode(c) {
+  function ensureNode(c) {
     let n = nodes.get(c.id);
     if (n) return n;
     const m = AVP.findMedia(c.mediaId);
@@ -52,6 +54,15 @@
       el.preload = 'auto';
       el.playsInline = true;
       el.src = m.url;
+      // Video elements finish loading or seeking after we set them up: redraw when they do.
+      el.addEventListener('loadeddata', () => markDirty());
+      el.addEventListener('seeked', () => markDirty());
+      el.addEventListener('error', () => {
+        if (!n.warned) {
+          n.warned = true;
+          AVP.toast(`Cannot play "${m.name}". Check the file format for this browser.`, 'error');
+        }
+      });
       let gain = null;
       let src = null;
       if (audioCtx) {
@@ -66,23 +77,29 @@
           src = null;
         }
       }
-      n = { el, img: null, gain, src, mediaId: m.id };
+      n = { el, img: null, gain, src, mediaId: m.id, warned: false };
     }
     nodes.set(c.id, n);
     return n;
   }
 
-  function hasLinkedAudio(c) {
-    return AVP.partners(c).some((p) => S.tracks[p.track] && S.tracks[p.track].kind === 'audio');
+  // Source for the compositor: video element or still image for a media clip.
+  function getSource(c) {
+    if (c.kind === 'title') return null;
+    return ensureNode(c);
   }
 
-  // Video clips with a linked audio clip are silenced here so the sound is not doubled.
-  function gainFor(c) {
+  function hasLinkedAudio(c) {
+    return AVP.partners(c).some((p) => AVP.trackKind(p.track) === 'audio');
+  }
+
+  // Volume for a clip right now: keyframed volume x constant-gain fades x track mute.
+  function gainFor(c, R, t) {
     const tr = S.tracks[c.track];
-    if (!tr || tr.muted) return 0;
+    if (!tr || !c.enabled || tr.muted) return 0;
     const m = AVP.findMedia(c.mediaId);
     if (m && m.type === 'video' && tr.kind === 'video' && hasLinkedAudio(c)) return 0;
-    return c.volume;
+    return Math.max(0, (AVP.propAt(c, 'volume', t) / 100) * AVP.audioRamp(R, t));
   }
 
   function cleanupNodes() {
@@ -103,32 +120,48 @@
 
   /* ---------- playback ---------- */
 
-  function isActive(c, t) {
-    return t >= c.start - EPS && t < c.start + c.duration - EPS;
+  // Clips visible at time t, with their transition windows (from the cached index).
+  function activeAt(t) {
+    const out = [];
+    const idx = AVP.trackIndex();
+    for (const id of S.trackOrder) {
+      const tr = idx[id];
+      if (!tr) continue;
+      for (const { c, R } of tr.items) {
+        if (AVP.isVisibleAt(R, t)) out.push({ c, R, track: tr });
+      }
+    }
+    return out;
   }
 
-  // Keep media elements in step with the playhead.
+  // Keeps media elements in step with the playhead.
+  let cleanedVersion = -1;
   function sync() {
-    cleanupNodes();
+    if (cleanedVersion !== AVP.dataVersion) {
+      cleanupNodes();
+      cleanedVersion = AVP.dataVersion;
+    }
     const t = S.playhead;
-    const active = new Set();
     const forward = S.playing && S.playDir > 0;
+    const activeIds = new Set();
 
-    for (const c of S.clips) {
-      if (!isActive(c, t)) continue;
-      active.add(c.id);
-      const n = getNode(c);
+    for (const { c, R, track } of activeAt(t)) {
+      activeIds.add(c.id);
+      if (c.kind === 'title') continue;
+      const n = ensureNode(c);
       if (!n) continue;
-      if (n.gain) n.gain.gain.value = gainFor(c);
+      if (n.gain) n.gain.gain.value = gainFor(c, R, t);
       if (!n.el) continue;
 
       const el = n.el;
-      const target = c.inPoint + (t - c.start);
-      if (forward) {
+      const sp = c.speed || 1;
+      if (el.playbackRate !== sp) el.playbackRate = AVP.clamp(sp, 0.0625, 16);
+      const target = Math.max(0, c.inPoint + (t - c.start) * sp);
+      if (forward && track) {
         if (el.paused) {
           if (Math.abs(el.currentTime - target) > 0.05) el.currentTime = target;
           el.play().catch(() => {});
-        } else if (Math.abs(el.currentTime - target) > 0.3) {
+        } else if (Math.abs(el.currentTime - target) > 0.3 * sp) {
           el.currentTime = target;
         }
       } else {
@@ -138,69 +171,110 @@
     }
 
     for (const [id, n] of nodes) {
-      if (!active.has(id) && n.el && !n.el.paused) n.el.pause();
+      if (!activeIds.has(id) && n.el && !n.el.paused) n.el.pause();
     }
+  }
+
+  // Redraws are event-driven: while playing, every tick; otherwise only after a change
+  // (a state edit, a media load or a seek) so an idle editor costs almost nothing.
+  let dirty = 0;
+  function markDirty(ticks) {
+    dirty = Math.max(dirty, ticks || 3);
+  }
+
+  // Sets the preview canvas to the chosen fraction of the sequence size. Export uses full size.
+  function applyPreview() {
+    if (!canvas || S.exporting) return;
+    const scale = S.previewScale || 0.5;
+    const w = Math.max(16, Math.round(S.seqWidth * scale));
+    const h = Math.max(16, Math.round(S.seqHeight * scale));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    markDirty(4);
+  }
+
+  function setPreviewScale(scale) {
+    S.previewScale = scale;
+    applyPreview();
+    AVP.toast(`Playback resolution: ${Math.round(scale * 100)}%`);
   }
 
   function draw() {
     if (!ctx) return;
-    const W = canvas.width;
-    const H = canvas.height;
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, W, H);
-    const t = S.playhead;
+    AVP.render.frame(ctx, S.playhead, getSource);
+    dirty = 0;
+  }
 
-    for (const tid of ['V1', 'V2', 'V3']) {
-      const tr = S.tracks[tid];
-      if (!tr || tr.hidden) continue;
-      for (const c of S.clips) {
-        if (c.track !== tid || !isActive(c, t)) continue;
-        const n = getNode(c);
-        if (!n) continue;
-        let src = null;
-        let sw = 0;
-        let sh = 0;
-        if (n.img) {
-          if (n.img.complete && n.img.naturalWidth) {
-            src = n.img;
-            sw = n.img.naturalWidth;
-            sh = n.img.naturalHeight;
-          }
-        } else if (n.el && n.el.readyState >= 2 && n.el.videoWidth) {
-          src = n.el;
-          sw = n.el.videoWidth;
-          sh = n.el.videoHeight;
-        }
-        if (!src) continue;
-        const k = Math.min(W / sw, H / sh) * c.scale;
-        const dw = sw * k;
-        const dh = sh * k;
-        ctx.globalAlpha = Math.max(0, Math.min(1, c.opacity));
-        ctx.drawImage(src, (W - dw) / 2, (H - dh) / 2, dw, dh);
-        ctx.globalAlpha = 1;
-      }
+  // Playback is paced to about 60 draws a second; changes are always drawn at once.
+  let lastDrawAt = 0;
+  function drawIfNeeded(now) {
+    if (dirty > 0) {
+      dirty--;
+    } else if (!S.playing || now - lastDrawAt < 16) {
+      return;
     }
+    lastDrawAt = now;
+    draw();
   }
 
   function updateTimecodes() {
+    const tcText = AVP.fmtTC(S.playhead);
     const tc = $('#progTC');
-    if (tc) tc.textContent = AVP.fmtTC(S.playhead);
+    if (tc && tc.textContent !== tcText) tc.textContent = tcText;
+    const durText = `Duration ${AVP.fmtTC(AVP.seqEnd())}`;
     const dur = $('#seqDur');
-    if (dur) dur.textContent = `Duration ${AVP.fmtTC(AVP.seqEnd())}`;
+    if (dur && dur.textContent !== durText) dur.textContent = durText;
     const pp = $('#pPlay');
     if (pp) {
-      pp.dataset.icon = S.playing && S.playDir > 0 ? 'pause' : 'play';
-      AVP.icons.apply(pp);
+      const playingFwd = S.playing && S.playDir > 0;
+      if (pp.dataset.icon !== (playingFwd ? 'pause' : 'play')) {
+        pp.dataset.icon = playingFwd ? 'pause' : 'play';
+        AVP.icons.apply(pp);
+      }
+      pp.classList.toggle('active', playingFwd);
     }
+    const hint = $('#progHint');
+    if (hint) hint.classList.toggle('hidden', AVP.seqEnd() > 0);
   }
 
-  function loop(ts) {
+  /*
+   * The loop is driven by requestAnimationFrame, with a timer fallback: browsers pause
+   * rAF in hidden or unfocused windows, and playback must keep moving in those cases.
+   * Whichever fires first runs the tick; the other is ignored.
+   */
+  // Each schedule() gets a token. Only the callback that matches the latest token runs, so
+  // the rAF and timer callbacks can never start a second chain of ticks.
+  let scheduleToken = 0;
+  function schedule() {
+    const id = ++scheduleToken;
+    let ran = false;
+    const run = (ts) => {
+      if (ran || id !== scheduleToken) return;
+      ran = true;
+      tick(typeof ts === 'number' ? ts : performance.now());
+    };
+    requestAnimationFrame(run);
+    setTimeout(() => run(performance.now()), 40);
+  }
+
+  function tick(ts) {
+    try {
+      step(ts);
+    } catch (err) {
+      console.error('AhPah Video Pro: frame error', err);
+    }
+    schedule();
+  }
+
+  function step(ts) {
     const dt = lastTs ? Math.min((ts - lastTs) / 1000, 0.25) : 0;
     lastTs = ts;
 
     if (S.playing) {
       S.playhead += S.playDir * dt;
-      const end = AVP.seqEnd();
+      const end = S.exporting ? exportEnd : playEnd();
       if (S.playDir > 0 && S.playhead >= end) {
         S.playhead = end;
         if (S.exporting) finishExport();
@@ -212,11 +286,17 @@
     }
 
     sync();
-    draw();
+    drawIfNeeded(performance.now());
     AVP.timeline.updatePlayhead();
     updateTimecodes();
     if (S.exporting) updateExportUI();
-    requestAnimationFrame(loop);
+    // next frame is scheduled by tick()
+  }
+
+  // Playback stops at the end of the work area when one is set, otherwise the sequence end.
+  function playEnd() {
+    if (S.workOut != null && S.workOut > 0) return Math.min(S.workOut, AVP.seqEnd());
+    return AVP.seqEnd();
   }
 
   function stop() {
@@ -226,12 +306,15 @@
 
   function play(dir) {
     if (AVP.seqEnd() <= 0) {
-      AVP.toast('The timeline is empty');
-      return;
+      if (S.srcMediaId && dir > 0) {
+        AVP.bin.togglePlay();
+        return AVP.toast('Timeline is empty: playing the Source clip. Press , to insert it on the timeline.');
+      }
+      return AVP.toast('Timeline is empty. Drag a clip from the Project panel onto a track first.', 'warn');
     }
-    if (dir > 0 && S.playhead >= AVP.seqEnd() - EPS) S.playhead = 0;
-    if (dir < 0 && S.playhead <= 0) S.playhead = AVP.seqEnd();
-    AVP.bin.updateSourceUI();
+    const end = playEnd();
+    if (dir > 0 && S.playhead >= end - EPS) S.playhead = S.workIn != null && S.workIn < end ? S.workIn : 0;
+    if (dir < 0 && S.playhead <= 0) S.playhead = end;
     resumeAudio();
     S.playing = true;
     S.playDir = dir;
@@ -252,10 +335,11 @@
     S.playhead = Math.max(0, AVP.snapFrame(t));
   }
 
-  // Jump to the previous / next clip boundary.
+  // Jump to the previous / next clip boundary or marker.
   function jumpEdit(dir) {
     const pts = [0];
     S.clips.forEach((c) => pts.push(c.start, c.start + c.duration));
+    S.markers.forEach((m) => pts.push(m.t));
     const t = S.playhead;
     const cands = dir > 0 ? pts.filter((p) => p > t + EPS) : pts.filter((p) => p < t - EPS);
     if (!cands.length) return;
@@ -264,59 +348,96 @@
 
   /* ---------- export ---------- */
 
+  function pickMime(format) {
+    if (typeof MediaRecorder === 'undefined') return null;
+    const list =
+      format === 'mp4'
+        ? ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4']
+        : ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+    return list.find((m) => MediaRecorder.isTypeSupported(m)) || null;
+  }
+
   function updateExportUI() {
-    const pct = exportEnd > 0 ? Math.min(100, (S.playhead / exportEnd) * 100) : 0;
+    const span = Math.max(EPS, exportEnd - exportStart);
+    const pct = Math.min(100, Math.max(0, ((S.playhead - exportStart) / span) * 100));
     const fill = $('#exportFill');
     const text = $('#exportText');
     if (fill) fill.style.width = pct.toFixed(1) + '%';
-    if (text) text.textContent = `Exporting WebM… ${Math.round(pct)}%  (Esc to stop)`;
+    if (text) text.textContent = `Exporting… ${Math.round(pct)}%  (Esc to stop)`;
   }
 
-  function startExport() {
+  /*
+   * opts: { format: 'webm'|'mp4', width, height, bitrate (Mbps), range: 'sequence'|'work' }
+   * Export runs in real time: the sequence plays once and is recorded.
+   */
+  function startExport(opts) {
     if (S.exporting) return;
     const end = AVP.seqEnd();
-    if (end <= 0) return AVP.toast('Nothing to export. Add clips to the timeline first.');
+    if (end <= 0) return AVP.toast('Nothing to export. Add clips to the timeline first.', 'warn');
     if (typeof MediaRecorder === 'undefined' || !canvas.captureStream) {
-      return AVP.toast('This browser cannot record video. Try Chrome, Edge or Firefox.');
+      return AVP.toast('This browser cannot record video. Try Chrome, Edge or Firefox.', 'error');
     }
+    opts = Object.assign({ format: 'webm', width: S.seqWidth, height: S.seqHeight, bitrate: 8, range: 'sequence' }, opts || {});
+    const mime = pickMime(opts.format);
+    if (!mime) return AVP.toast('This browser cannot record ' + opts.format.toUpperCase() + '. Choose WebM.', 'error');
+
+    let start = 0;
+    let stopAt = end;
+    if (opts.range === 'work') {
+      start = S.workIn != null ? Math.max(0, S.workIn) : 0;
+      stopAt = S.workOut != null ? Math.min(end, S.workOut) : end;
+      if (stopAt - start < 0.1) return AVP.toast('The work area is empty', 'warn');
+    }
+
     resumeAudio();
+    savedSize = { w: canvas.width, h: canvas.height };
+    canvas.width = opts.width;
+    canvas.height = opts.height;
 
     const tracks = canvas.captureStream(S.fps).getVideoTracks().slice();
     if (streamDest) tracks.push(...streamDest.stream.getAudioTracks());
-
-    const mime = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find((m) =>
-      MediaRecorder.isTypeSupported(m)
-    );
     try {
       recorder = new MediaRecorder(new MediaStream(tracks), {
-        mimeType: mime || undefined,
-        videoBitsPerSecond: 8000000,
+        mimeType: mime,
+        videoBitsPerSecond: Math.round(opts.bitrate * 1000000),
       });
     } catch (err) {
-      return AVP.toast('Could not start recording: ' + err.message);
+      restoreCanvasSize();
+      return AVP.toast('Could not start recording: ' + err.message, 'error');
     }
 
     recChunks = [];
     recorder.ondataavailable = (ev) => {
       if (ev.data && ev.data.size) recChunks.push(ev.data);
     };
+    const ext = opts.format === 'mp4' ? 'mp4' : 'webm';
     recorder.onstop = () => {
-      const blob = new Blob(recChunks, { type: 'video/webm' });
-      AVP.download(blob, `${AVP.safeName(S.projectName)}.webm`);
-      AVP.toast('Export saved as WebM');
+      const blob = new Blob(recChunks, { type: opts.format === 'mp4' ? 'video/mp4' : 'video/webm' });
+      AVP.download(blob, `${AVP.safeName(S.projectName)}.${ext}`);
+      AVP.toast(`Export saved as ${ext.toUpperCase()}`, 'ok');
+      restoreCanvasSize();
       const ov = $('#exportOverlay');
       if (ov) ov.classList.add('hidden');
     };
 
-    exportEnd = end;
+    exportStart = start;
+    exportEnd = stopAt;
     S.exporting = true;
     stop();
-    S.playhead = 0;
+    S.playhead = start;
     recorder.start(1000);
     const ov = $('#exportOverlay');
     if (ov) ov.classList.remove('hidden');
-    AVP.toast('Exporting in real time. Keep this tab visible.');
+    AVP.toast('Exporting in real time. Keep this tab visible while it runs.');
     play(1);
+  }
+
+  function restoreCanvasSize() {
+    if (savedSize) {
+      canvas.width = savedSize.w;
+      canvas.height = savedSize.h;
+      savedSize = null;
+    }
   }
 
   function finishExport() {
@@ -326,13 +447,28 @@
     if (recorder && recorder.state !== 'inactive') recorder.stop();
   }
 
+  // Renders the frame at the playhead to a PNG file.
+  function exportFrame() {
+    const off = document.createElement('canvas');
+    off.width = S.seqWidth;
+    off.height = S.seqHeight;
+    const octx = off.getContext('2d');
+    sync();
+    AVP.render.frame(octx, S.playhead, getSource);
+    off.toBlob((blob) => {
+      if (!blob) return AVP.toast('Could not create the image', 'error');
+      const name = `${AVP.safeName(S.projectName)} ${AVP.fmtTC(S.playhead).replace(/:/g, '-')}.png`;
+      AVP.download(blob, name);
+      AVP.toast('Frame saved as PNG', 'ok');
+    }, 'image/png');
+  }
+
   /* ---------- init ---------- */
 
   function init() {
     canvas = $('#prog');
-    canvas.width = S.seqWidth;
-    canvas.height = S.seqHeight;
     ctx = canvas.getContext('2d');
+    applyPreview();
     try {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       streamDest = audioCtx.createMediaStreamDestination();
@@ -340,7 +476,14 @@
       audioCtx = null;
       streamDest = null;
     }
-    requestAnimationFrame(loop);
+    schedule();
+  }
+
+  // Applies a new sequence size to the preview canvas.
+  function resize(w, h) {
+    S.seqWidth = w;
+    S.seqHeight = h;
+    applyPreview();
   }
 
   AVP.monitor = {
@@ -355,6 +498,13 @@
     jumpEdit,
     startExport,
     finishExport,
+    exportFrame,
+    resize,
+    setPreviewScale,
+    applyPreview,
     isExporting: () => S.exporting,
+    markDirty,
+    getSource,
+    audioContext: () => audioCtx,
   };
 })();

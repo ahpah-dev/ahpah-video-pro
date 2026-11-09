@@ -8,32 +8,34 @@
   const AVP = (window.AVP = window.AVP || {});
 
   AVP.APP_NAME = 'AhPah Video Pro';
-  AVP.VERSION = '1.0.0';
+  AVP.VERSION = '1.1.0';
   AVP.EPS = 1e-4;
 
-  AVP.defaultTracks = function () {
-    return {
-      V3: { kind: 'video', hidden: false },
-      V2: { kind: 'video', hidden: false },
-      V1: { kind: 'video', hidden: false },
-      A1: { kind: 'audio', muted: false },
-      A2: { kind: 'audio', muted: false },
-      A3: { kind: 'audio', muted: false },
-    };
+  /* ---------- tracks ---------- */
+
+  AVP.newTrackSet = function () {
+    const tracks = {};
+    ['V1', 'V2', 'V3'].forEach((id) => (tracks[id] = { id, kind: 'video', hidden: false, locked: false }));
+    ['A1', 'A2', 'A3'].forEach((id) => (tracks[id] = { id, kind: 'audio', muted: false, locked: false }));
+    return { tracks, order: ['V3', 'V2', 'V1', 'A1', 'A2', 'A3'] };
   };
 
-  // Top-to-bottom display order of timeline rows.
-  AVP.trackOrder = ['V3', 'V2', 'V1', 'A1', 'A2', 'A3'];
+  const initialTracks = AVP.newTrackSet();
 
   AVP.state = {
     projectName: 'Untitled Project',
-    fps: 30,
     seqWidth: 1920,
     seqHeight: 1080,
-    media: [], // {id, name, type: 'video'|'audio'|'image', url, duration, width, height, thumb, error, offline}
-    clips: [], // {id, mediaId, track, start, inPoint, duration, opacity, volume, scale, linkId}
-    tracks: AVP.defaultTracks(),
-    selection: [], // clip ids (linked partners are always selected together)
+    fps: 30,
+    media: [], // {id,name,type,url,duration,width,height,thumb,wave,hasAudio,error,offline}
+    clips: [], // see AVP.normalizeClip
+    tracks: initialTracks.tracks,
+    trackOrder: initialTracks.order, // top -> bottom display order
+    markers: [], // {id,t,label}
+    workIn: null,
+    workOut: null,
+    selection: [],
+    clipboard: null,
     playhead: 0,
     tool: 'select', // select | razor | hand
     snap: true,
@@ -46,6 +48,16 @@
     playing: false,
     playDir: 0, // 1 forward, -1 reverse, 0 stopped
     exporting: false,
+    panel: 'controls', // controls | effects
+    effectsQuery: '',
+    showSafe: false,
+    previewScale: 0.5, // Program monitor render size: 1 = full, 0.5 = half, 0.25 = quarter
+  };
+
+  // Bumped whenever clips, tracks or transitions change; caches key off it.
+  AVP.dataVersion = 0;
+  AVP.touchData = function () {
+    AVP.dataVersion++;
   };
 
   const S = AVP.state;
@@ -57,7 +69,10 @@
   };
   AVP.findClip = (id) => S.clips.find((c) => c.id === id) || null;
   AVP.findMedia = (id) => S.media.find((m) => m.id === id) || null;
+  AVP.clipEnd = (c) => c.start + c.duration;
   AVP.seqEnd = () => S.clips.reduce((mx, c) => Math.max(mx, c.start + c.duration), 0);
+  AVP.trackKind = (id) => (S.tracks[id] ? S.tracks[id].kind : null);
+  AVP.clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
   /* ---------- time helpers ---------- */
 
@@ -81,7 +96,16 @@
 
   const undoStack = [];
   const redoStack = [];
-  const snapshot = () => JSON.stringify({ clips: S.clips, tracks: S.tracks });
+
+  const snapshot = () =>
+    JSON.stringify({
+      clips: S.clips,
+      tracks: S.tracks,
+      trackOrder: S.trackOrder,
+      markers: S.markers,
+      workIn: S.workIn,
+      workOut: S.workOut,
+    });
 
   // Call BEFORE changing the timeline. Returns false when nothing new was stored.
   AVP.pushUndo = function () {
@@ -101,6 +125,10 @@
     const d = JSON.parse(json);
     S.clips = d.clips;
     S.tracks = d.tracks;
+    S.trackOrder = d.trackOrder;
+    S.markers = d.markers || [];
+    S.workIn = d.workIn == null ? null : d.workIn;
+    S.workOut = d.workOut == null ? null : d.workOut;
     S.selection = S.selection.filter((id) => S.clips.some((c) => c.id === id));
     AVP.refresh();
   }
@@ -146,17 +174,19 @@
     }
   };
 
+  AVP.selectedClips = () => S.selection.map((id) => AVP.findClip(id)).filter(Boolean);
+
   /* ---------- UI helpers ---------- */
 
-  AVP.toast = function (msg) {
+  AVP.toast = function (msg, kind) {
     const host = document.getElementById('toasts');
     if (!host) return;
     const el = document.createElement('div');
-    el.className = 'toast';
+    el.className = 'toast' + (kind ? ' ' + kind : '');
     el.textContent = msg;
     host.appendChild(el);
-    setTimeout(() => el.classList.add('fade'), 2600);
-    setTimeout(() => el.remove(), 3100);
+    setTimeout(() => el.classList.add('fade'), 3200);
+    setTimeout(() => el.remove(), 3700);
   };
 
   AVP.download = function (blob, filename) {

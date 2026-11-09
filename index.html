@@ -33,7 +33,7 @@
     </section>
 
     <!-- Source monitor -->
-    <section class="panel" id="sourcePanel">
+    <section class="panel" id="srcPanel">
       <div class="panel-head">
         <span class="tab active">Source: <b id="srcName">(no clip)</b></span>
       </div>
@@ -44,7 +44,7 @@
       </div>
       <div class="tc-row">
         <span class="tc" id="srcTC">00:00:00:00</span>
-        <span class="io" id="srcInOut">In --:--:--:--   Out --:--:--:--</span>
+        <span class="io" id="srcInOut">In --:--:--:--  Out --:--:--:--</span>
       </div>
       <input type="range" id="srcScrub" min="0" max="1" step="0.001" value="0">
       <div class="transport">
@@ -66,11 +66,20 @@
       <div class="panel-head">
         <span class="tab active">Program: Sequence 01</span>
         <span class="grow"></span>
-        <span class="muted">1920×1080 · 30 fps</span>
+        <select id="previewSel" class="preview-select" title="Playback resolution">
+          <option value="1">Full</option>
+          <option value="0.5">1/2</option>
+          <option value="0.25">1/4</option>
+        </select>
+        <button class="btn small" id="btnSeq" title="Sequence settings">Settings</button>
         <button class="btn small" id="btnExport" title="Export video (Ctrl+M)">Export</button>
       </div>
       <div class="monitor">
         <canvas id="prog" width="1920" height="1080"></canvas>
+        <div class="monitor-hint" id="progHint">
+          <div class="big">Timeline is empty</div>
+          <div>Drag clips from the Project panel onto a track, or select a clip in Source and press <b>,</b></div>
+        </div>
         <div class="export-overlay hidden" id="exportOverlay">
           <div class="bar"><div id="exportFill"></div></div>
           <div id="exportText">Exporting…</div>
@@ -84,19 +93,21 @@
         <button class="btn icon" id="pToStart" data-icon="toStart" title="Go to start (Home)"></button>
         <button class="btn icon" id="pRev" data-icon="rev" title="Play reverse (J)"></button>
         <button class="btn icon" id="pStepBack" data-icon="stepBack" title="Previous frame (Left)"></button>
-        <button class="btn icon" id="pPlay" data-icon="play" title="Play / pause (Space)"></button>
+        <button class="btn icon play-main" id="pPlay" data-icon="play" title="Play / pause (Space)"></button>
         <button class="btn icon" id="pStepFwd" data-icon="stepFwd" title="Next frame (Right)"></button>
         <button class="btn icon" id="pFwd" data-icon="ff" title="Play forward (L)"></button>
         <button class="btn icon" id="pToEnd" data-icon="toEnd" title="Go to end (End)"></button>
       </div>
     </section>
 
-    <!-- Effect controls -->
+    <!-- Effect Controls / Effects library -->
     <section class="panel" id="fxPanel">
-      <div class="panel-head">
-        <span class="tab active">Effect Controls</span>
+      <div class="panel-head tabs-head">
+        <button class="tab-btn active" id="tabControls">Effect Controls</button>
+        <button class="tab-btn" id="tabEffects">Effects</button>
       </div>
       <div class="fx-body" id="fxBody"></div>
+      <div class="lib-body hidden" id="libBody"></div>
     </section>
 
     <!-- Timeline -->
@@ -104,9 +115,11 @@
       <div class="tl-toolbar">
         <span class="tc big" id="tlTC">00:00:00:00</span>
         <span class="sep-v"></span>
-        <button class="btn tool" data-tool="select" title="Selection tool (V)">V</button>
-        <button class="btn tool" data-tool="razor" title="Razor tool (C)">C</button>
-        <button class="btn tool" data-tool="hand" title="Hand tool (H)">H</button>
+        <div class="seg" title="Tools">
+          <button class="btn tool" data-tool="select" title="Selection (V)"><svg viewBox="0 0 16 16"><path d="M3.5 2.5l9 5.2-4 1 2.4 4.1-1.6.9-2.4-4.1-2.6 2.6z" fill="currentColor"/></svg></button>
+          <button class="btn tool" data-tool="razor" title="Razor (C)"><svg viewBox="0 0 16 16"><rect x="1.5" y="6" width="13" height="4" rx="1.2" transform="rotate(-35 8 8)" fill="currentColor"/></svg></button>
+          <button class="btn tool" data-tool="hand" title="Hand (H)"><svg viewBox="0 0 16 16"><path d="M5 8V3.6a1 1 0 0 1 2 0V7.4M7 7V2.6a1 1 0 0 1 2 0V7.2M9 7V3.4a1 1 0 0 1 2 0V9l.9-.3a1 1 0 0 1 1.1 1.6L10.8 13H6.2L3.6 9.6a1 1 0 0 1 1.4-1.4L5 8.6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
         <span class="sep-v"></span>
         <button class="btn" id="tlSnap" title="Toggle snapping (S)">Snap</button>
         <button class="btn" id="tlFit" title="Fit timeline (\)">Fit</button>
@@ -130,6 +143,7 @@
         <button class="btn icon" id="modalClose" title="Close">&times;</button>
       </div>
       <div class="modal-body" id="modalBody"></div>
+      <div class="modal-foot" id="modalFoot"></div>
     </div>
   </div>
 
@@ -137,10 +151,16 @@
   <input type="file" id="openInput" accept=".ahpvp,application/json" hidden>
 
   <script src="js/state.js"></script>
+  <script src="js/effects.js"></script>
   <script src="js/edits.js"></script>
-  <script src="js/bin.js"></script>
-  <script src="js/timeline.js"></script>
+  <script src="js/render.js"></script>
   <script src="js/monitor.js"></script>
+  <script src="js/bin.js"></script>
+  <script src="js/menu.js"></script>
+  <script src="js/dialog.js"></script>
+  <script src="js/panels.js"></script>
+  <script src="js/timeline.js"></script>
+  <script src="js/project.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>
