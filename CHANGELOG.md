@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.5
+
+### Effects library
+- One click on an effect or transition in the Effects tab applies it to the selected clip. A title
+  preset is added at the playhead with one click too. It no longer needs a double-click.
+
 ## 1.9.4
 
 ### Scrubbing

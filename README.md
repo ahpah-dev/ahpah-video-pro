@@ -31,7 +31,7 @@ it, sell it or bundle it however you like.
   - Undo and redo.
 - **Source monitor**: mark In and Out, then Insert (`,`) or Overwrite (`.`) at the playhead.
   Clips with sound place linked video and audio clips.
-- **Effects** (Effect Controls or the Effects tab; drag onto a clip or double-click):
+- **Effects** (Effect Controls or the Effects tab; drag onto a clip, or click an item to apply it to the selection):
   brightness and contrast, saturation, hue rotate, black and white, sepia, invert, blur,
   glow, mosaic, vignette, film grain, crop, flip, tint, drop shadow, light leak, lens flare,
   scan lines and letterbox.

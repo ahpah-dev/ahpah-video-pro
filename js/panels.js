@@ -451,7 +451,7 @@
       drag: (i) => JSON.stringify({ kind: 'title', preset: i }),
       attrs: (i) => `data-dbl="title" data-type="${i}"`,
     });
-    html += `<div class="lib-note">Drag an effect onto a clip. Drag a transition onto the start or end of a clip. Double-click to apply to the selection.</div>`;
+    html += `<div class="lib-note">Drag an effect onto a clip. Drag a transition onto the start or end of a clip. Click to apply to the selection.</div>`;
     libraryEl.innerHTML = html;
 
     const qi = $('#libQuery');
@@ -472,7 +472,8 @@
         e.dataTransfer.setData('application/x-avp-effect', el.dataset.drag);
         e.dataTransfer.effectAllowed = 'copy';
       });
-      el.addEventListener('dblclick', () => {
+      // One click applies the item to the selection (or adds a title at the playhead).
+      el.addEventListener('click', () => {
         const type = el.dataset.type;
         const kind = el.dataset.dbl;
         if (kind === 'effect') AVP.edit.addFx(S.selection.slice(), type);

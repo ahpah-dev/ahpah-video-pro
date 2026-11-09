@@ -8,7 +8,7 @@
   const AVP = (window.AVP = window.AVP || {});
 
   AVP.APP_NAME = 'AhPah Video Pro';
-  AVP.VERSION = '1.9.4';
+  AVP.VERSION = '1.9.5';
   AVP.EPS = 1e-4;
 
   /* ---------- tracks ---------- */
