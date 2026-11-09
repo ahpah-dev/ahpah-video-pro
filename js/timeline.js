@@ -73,7 +73,7 @@
     const g = cv.getContext('2d');
     const W = cv.width;
     const H = cv.height;
-    g.fillStyle = '#2b2b2b';
+    g.fillStyle = '#232323';
     g.fillRect(0, 0, W, H);
 
     // Work area: dim what is outside the in / out points.
@@ -90,17 +90,29 @@
     const steps = [1 / S.fps, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
     const step = steps.find((s) => s * S.zoom >= 70) || 600;
     g.font = '10px "Segoe UI", system-ui, sans-serif';
-    g.fillStyle = '#9a9a9a';
-    g.strokeStyle = '#6a6a6a';
     g.lineWidth = 1;
+    const minor = 4; // minor ticks between two labelled ones
+    const minorGap = step * S.zoom / minor;
     for (let k = 0; k * step * S.zoom <= laneW; k++) {
       const t = k * step;
       const x = Math.round(t * S.zoom) + 0.5;
+      g.strokeStyle = '#8a8a8a';
       g.beginPath();
-      g.moveTo(x, H - 7);
-      g.lineTo(x, H - 4);
+      g.moveTo(x, H - 9);
+      g.lineTo(x, H);
       g.stroke();
-      g.fillText(fmtShort(t, step), x + 3, 11);
+      if (minorGap >= 8) {
+        g.strokeStyle = '#555555';
+        g.beginPath();
+        for (let j = 1; j < minor; j++) {
+          const mx = Math.round(x + j * minorGap) + 0.5;
+          g.moveTo(mx, H - (j === minor / 2 ? 6 : 4));
+          g.lineTo(mx, H);
+        }
+        g.stroke();
+      }
+      g.fillStyle = '#b4b4b4';
+      g.fillText(fmtShort(t, step), x + 4, 11);
     }
   }
 

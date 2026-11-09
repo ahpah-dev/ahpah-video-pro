@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.23.0
+
+### Premiere Pro 2024 look
+- New `css/premiere.css` skin, loaded last. Panels float with an even 4 px gutter and rounded corners; the
+  panel you last clicked in gets Premiere's blue outline (`js/skin.js`).
+- Flat tab strips with an underline on the front tab (light grey, blue in the active panel). The active
+  workspace in the top bar is underlined instead of boxed.
+- Timeline: clips use Premiere's label colours (blue-violet video, green audio, violet stills, orange
+  titles) with a coloured name bar over the picture or waveform. A selected clip turns white. Track names
+  are framed buttons, filled blue on the target track. The playhead is a blue line with a home-plate head.
+  The ruler has minor ticks between the labels.
+- Darker, calmer greys, thinner scrollbars, rounded menus and dialogs, blue program timecode.
+- No behaviour changes. The splitters follow the new gutter (`GAP` and `PAD` in `js/layout.js`).
+
 ## 1.22.1
 
 ### Export: lag spikes fixed

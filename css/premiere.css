@@ -1,0 +1,284 @@
+/* AhPah Video Pro - Premiere Pro 2024 skin (v1.23).
+ * Loaded last. Rounded floating panels with an even gutter, a blue outline on the panel you are working in,
+ * flat tab strips with an underline, Premiere's label colours on clips (blue-violet video, green audio),
+ * and a pentagon playhead. Everything here is colour and shape only: no layout logic depends on it,
+ * except the 4 px gutter, which js/layout.js mirrors (GAP and PAD).
+ */
+
+:root {
+  --chrome: #1d1d1d;
+  --panel: #232323;
+  --tabbar: #232323;
+  --header: #232323;
+  --lane: #1f1f1f;
+  --lane-alt: #1f1f1f;
+  --border: #151515;
+  --line: #333333;
+  --text: #c9c9c9;
+  --muted: #8a8a8a;
+  --accent: #2d8ceb;
+  --accent-2: #4aa0f5;
+  --pr-edge: #151515;
+  --pr-well: #181818;
+  /* Premiere label colours */
+  --lbl-video: #6a72c4;       /* Iris */
+  --lbl-video-hdr: #5961b5;
+  --lbl-audio: #3f9c76;       /* Mint / Forest */
+  --lbl-audio-hdr: #2f8663;
+  --lbl-image: #b472b8;       /* Violet */
+  --lbl-image-hdr: #9d5ea1;
+  --lbl-title: #d79e45;       /* Mango */
+  --lbl-title-hdr: #bd8631;
+  --lbl-shape: #4aa59a;
+  --lbl-shape-hdr: #388d83;
+  font-family: "Adobe Clean", "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+  font-size: 12px;
+}
+
+html, body { background: var(--chrome); }
+
+/* ---------- application bar ---------- */
+
+.appbar { height: 30px; background: #1d1d1d; border-bottom: 1px solid #101010; padding: 0 8px 0 6px; }
+.brand { font-weight: 600; letter-spacing: 0.1px; color: #f0f0f0; }
+.menu-title { padding: 0 9px; color: #bdbdbd; border-radius: 3px; height: 22px; align-self: center; }
+.menu-title:hover, .menu-title.open { background: #333333; color: #fff; }
+
+.workspaces { gap: 2px; }
+.wtab {
+  position: relative;
+  height: 100%;
+  margin: 0;
+  padding: 0 11px;
+  border-radius: 0;
+  background: none;
+  color: #9d9d9d;
+}
+.wtab:hover { color: #fff; background: none; }
+.wtab.active {
+  height: 100%;
+  margin: 0;
+  background: none;
+  color: #fff;
+  border-radius: 0;
+  padding: 0 11px;
+}
+.wtab.active::after {
+  content: "";
+  position: absolute;
+  left: 9px;
+  right: 9px;
+  bottom: 0;
+  height: 2px;
+  background: var(--accent);
+}
+.proj-name { color: #8a8a8a; }
+
+/* ---------- floating, rounded panels ---------- */
+
+.layout {
+  height: calc(100% - 30px);
+  gap: 4px;
+  padding: 4px;
+  background: var(--chrome);
+}
+.panel {
+  background: var(--panel);
+  border: 1px solid #141414;
+  border-radius: 6px;
+  box-shadow: none;
+}
+/* The panel you last clicked in gets Premiere's blue outline. */
+.panel.panel-focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.split:hover::after, .split.dragging::after { background: var(--accent); }
+
+.panel-head,
+.ptabs {
+  height: 30px;
+  flex-basis: 30px;
+  background: #232323;
+  border-bottom: 1px solid #171717;
+}
+.panel-head { padding: 0 8px; }
+.panel-head b { color: #e8e8e8; font-weight: 500; }
+
+/* Tab strips: no boxes, a light underline on the front tab */
+.ptab {
+  position: relative;
+  background: none;
+  border: 0;
+  border-right: 0;
+  padding: 0 12px;
+  color: #8f8f8f;
+  font-weight: 500;
+}
+.ptab:hover { background: none; color: #e0e0e0; }
+.ptab.active {
+  background: none;
+  color: #ffffff;
+  box-shadow: none;
+}
+.ptab.active::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 0;
+  height: 2px;
+  background: #d6d6d6;
+}
+.panel.panel-focus .ptab.active::after { background: var(--accent); }
+.tab-btn { background: none; color: #8f8f8f; font-weight: 500; }
+.tab-btn.active { background: none; color: #fff; box-shadow: inset 0 -2px 0 #d6d6d6; }
+.panel.panel-focus .tab-btn.active { box-shadow: inset 0 -2px 0 var(--accent); }
+
+.panel-foot { background: #232323; border-top: 1px solid #171717; color: #8a8a8a; }
+.fx-body, .lib-body, .list-body { background: var(--panel); }
+.bin-list { background: #1f1f1f; }
+.bin-toolbar { background: #232323; border-bottom: 1px solid #171717; }
+
+/* Effect Controls: section titles as quiet bars */
+.fx-title {
+  color: #e2e2e2;
+  font-weight: 600;
+  font-size: 11.5px;
+  padding: 3px 0 3px 2px;
+  margin-bottom: 4px;
+}
+.fx-group { border-bottom: 1px solid #2d2d2d; }
+.fx-name { font-weight: 600; color: #fff; }
+
+/* ---------- buttons and fields ---------- */
+
+.btn { background: #2f2f2f; border: 1px solid #1a1a1a; border-radius: 3px; color: #d0d0d0; }
+.btn:hover { background: #3a3a3a; }
+.btn.primary, .btn.active { background: var(--accent); border-color: #1d6fc2; color: #fff; }
+.btn.primary:hover { background: #4aa0f5; }
+input[type=text], input[type=number], input[type=search], textarea, select {
+  background: #181818;
+  border-color: #353535;
+  border-radius: 3px;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(45, 140, 235, 0.35); }
+
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-thumb { background: #3c3c3c; border: 3px solid transparent; background-clip: padding-box; border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: #555555; background-clip: padding-box; border: 3px solid transparent; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+/* ---------- monitors ---------- */
+
+#prog, .monitor { background: #000; }
+.tc { background: #141414; border: 1px solid #0c0c0c; border-radius: 3px; color: #dcdcdc; }
+.tc.big { color: #4aa0f5; border-color: #0c0c0c; background: transparent; border: 0; font-weight: 500; }
+.transport { background: #232323; border-top: 1px solid #171717; }
+.tc-row { background: #232323; }
+.btn.play-main { background: #333; border-color: #1a1a1a; }
+
+/* ---------- timeline ---------- */
+
+#timeline { background: #232323; }
+.tl-toolbar { background: #232323; border-bottom: 1px solid #171717; }
+.seq-tabs { background: #232323; border-bottom: 1px solid #171717; }
+.seq-tab { background: none; color: #fff; }
+.seq-tab::after { background: #d6d6d6; }
+.tools { background: #232323; border-right: 1px solid #171717; padding: 6px 0; gap: 3px; }
+.tool-btn { width: 32px; height: 32px; border-radius: 3px; color: #b5b5b5; }
+.tool-btn:hover { background: #333; color: #fff; }
+.tool-btn.active { background: var(--accent); border-color: transparent; color: #fff; }
+
+.tl-scroll { background: #1f1f1f; }
+.tl-row { border-bottom: 1px solid #191919; }
+.tl-row.ruler { background: #232323; border-bottom: 1px solid #171717; }
+.tl-row.ruler .tl-lane { background: #232323; }
+.tl-row.video .tl-lane { background: #1f1f1f; }
+.tl-row.audio .tl-lane { background: #1f1f1f; }
+.tl-row.video:nth-of-type(odd) .tl-lane,
+.tl-row.audio:nth-of-type(odd) .tl-lane { background: #212121; }
+.tl-head { background: #262626; border-right: 1px solid #171717; color: #a8a8a8; }
+.tl-head.corner { background: #232323; }
+.tl-head:hover { background: #2d2d2d; color: #fff; }
+.tl-head.target { background: #2a2f36; box-shadow: none; }
+/* Track name as a small framed button, filled blue when it is the target (as in Premiere) */
+.tl-name {
+  min-width: 24px;
+  padding: 1px 4px;
+  border: 1px solid #4a4a4a;
+  border-radius: 3px;
+  color: #cfcfcf;
+  background: #2f2f2f;
+  font-weight: 600;
+}
+.tl-head.target .tl-name { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tl-toggle { border-radius: 3px; color: #9a9a9a; }
+.tl-toggle:hover { background: #3a3a3a; color: #fff; }
+
+/* Clips: a coloured name bar on top, the picture or waveform beneath */
+.clip {
+  top: 2px;
+  bottom: 2px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.6);
+  box-shadow: none;
+  padding: 0;
+  color: #fff;
+}
+.clip:hover { filter: brightness(1.08); }
+.clip-label {
+  position: relative;
+  z-index: 2;
+  margin: 0;
+  padding: 1px 6px 2px;
+  font-weight: 500;
+  font-size: 11px;
+  line-height: 14px;
+  text-shadow: none;
+  color: #fff;
+  background: var(--hdr, #5961b5);
+}
+.clip.video { background: var(--lbl-video); --hdr: var(--lbl-video-hdr); }
+.clip.audio { background: #26493b; --hdr: var(--lbl-audio-hdr); }
+.clip.image { background: var(--lbl-image); --hdr: var(--lbl-image-hdr); }
+.clip.title { background: var(--lbl-title); --hdr: var(--lbl-title-hdr); }
+.clip.shape { background: var(--lbl-shape); --hdr: var(--lbl-shape-hdr); }
+.clip.selected {
+  box-shadow: 0 0 0 1px #ffffff;
+  border-color: #ffffff;
+  filter: brightness(1.12);
+}
+.clip.selected .clip-label { background: #ffffff; color: #111; }
+
+/* Playhead: a blue line with a home-plate head */
+.tl-playhead { width: 1px; background: var(--accent); box-shadow: 0 0 0 0.5px rgba(45, 140, 235, 0.35); }
+.tl-playhead::before {
+  top: 0;
+  left: -6px;
+  width: 13px;
+  height: 14px;
+  border: 0;
+  background: var(--accent);
+  clip-path: polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%);
+}
+
+.tl-marquee { border-color: var(--accent); background: rgba(45, 140, 235, 0.14); }
+.marker-flag { border-bottom-color: #4bbf73; }
+.marker-line { background: rgba(75, 191, 115, 0.25); }
+
+.meters { background: #232323; border-left: 1px solid #171717; }
+
+/* ---------- menus, dialogs, toasts ---------- */
+
+.menu-dd { background: #262626; border: 1px solid #3a3a3a; border-radius: 5px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6); padding: 5px; }
+.mi { border-radius: 3px; padding: 5px 10px 5px 8px; }
+.mi:hover { background: var(--accent); }
+.menu-dd .sep { background: #3a3a3a; margin: 5px 2px; }
+.modal-card { background: #262626; border: 1px solid #3a3a3a; border-radius: 8px; overflow: hidden; }
+.modal-head, .modal-foot { background: #2b2b2b; }
+.toast { border-radius: 5px; }
+
+/* ---------- project panel items ---------- */
+
+.bin-item { background: #292929; border: 1px solid #333; border-radius: 4px; }
+.bin-item:hover { border-color: #505050; background: #2e2e2e; }
+.bin-item.selected { background: #26384c; border-color: var(--accent); box-shadow: none; }
+.lib-item { border-radius: 4px; }

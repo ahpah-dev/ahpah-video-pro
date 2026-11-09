@@ -10,8 +10,8 @@
 
   const AVP = window.AVP;
 
-  const GAP = 2; // gap between panels (style.css .layout)
-  const PAD = 2; // padding around the layout
+  const GAP = 4; // gap between panels (css/premiere.css .layout)
+  const PAD = 4; // padding around the layout
   const HIT = 8; // width of the grab area on a splitter
   const MIN_COL = 170;
   const MIN_TOP = 170;
