@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.20.0
+
+### Export
+- A background timer drives the export, so it keeps the same speed when the window is in the background.
+  Before, browsers slowed the picture to about one frame a second in a hidden tab, while the sound kept
+  going, so the two drifted apart.
+- Each frame is drawn once and recorded exactly once. Before, the recorder took frames on its own
+  schedule, so frames could be doubled or missed.
+- Frames wait for video that is still seeking or loading, so the export no longer shows a half-loaded or
+  black frame at the start of a clip.
+- The first frames are sent to the encoder before the clock starts, so short exports begin cleanly.
+- A finished MP4 is checked for a readable video track. Some browsers write an MP4 with no video; the
+  export is recorded again (up to three tries), and if it still cannot be read the file is saved with a
+  note to try WebM.
+- MP4 is the default in the export dialog wherever the browser can record it. The unsupported MP4 choice
+  is no longer listed.
+- Frame sizes are rounded to even numbers, which encoders need.
+- Audio is recorded at 160 kbps alongside the video bitrate.
+- A recorder error stops the export cleanly and saves what was recorded, with a message. An empty
+  recording is reported rather than saved.
+- Cancelling with Esc saves the part already recorded.
+
 ## 1.19.0
 
 ### Text animations

@@ -161,9 +161,9 @@
           k: 'format',
           label: 'Format',
           type: 'select',
-          value: 'webm',
+          value: mp4 ? 'mp4' : 'webm',
           options: [{ v: 'webm', label: 'WebM (VP9 / VP8 with Opus)' }].concat(
-            mp4 ? [{ v: 'mp4', label: 'MP4 (H.264 with AAC)' }] : [{ v: 'mp4', label: 'MP4 (not supported in this browser)' }]
+            mp4 ? [{ v: 'mp4', label: 'MP4 (H.264 with AAC), recommended' }] : []
           ),
         },
         {

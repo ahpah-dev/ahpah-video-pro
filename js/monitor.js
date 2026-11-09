@@ -441,6 +441,14 @@
   }
 
   function step(ts) {
+    if (S.exporting) {
+      // During an export the export clock (exportTick) moves the playhead and draws each frame.
+      AVP.timeline.updatePlayhead();
+      updateTimecodes();
+      updateExportUI();
+      lastTs = ts;
+      return;
+    }
     const dt = lastTs ? Math.min((ts - lastTs) / 1000, 0.25) : 0;
     lastTs = ts;
 
@@ -546,8 +554,170 @@
 
   /*
    * opts: { format: 'webm'|'mp4', width, height, bitrate (Mbps), range: 'sequence'|'work' }
-   * Export runs in real time: the sequence plays once and is recorded.
+   *
+   * Export runs in real time, driven by its own clock. A worker timer (not throttled in background tabs)
+   * ticks at the frame rate; each tick sets the playhead from the clock, draws that frame once, and asks the
+   * recorder for exactly that frame. Frames are only drawn when the media for that moment is ready, so the
+   * picture never shows a half-seeked frame. Audio plays from the same clock through the normal graph.
    */
+  let exportTrack = null; // the canvas video track the frames are pushed into
+  let manualFrames = false; // true when the track accepts requestFrame (one captured frame per drawn frame)
+  let exportClock0 = 0; // performance.now() when the export clock started
+  let exportTicker = null;
+  let notReadySince = 0; // when the media first stopped being ready (0 when it is ready)
+  let recStarted = false;
+  let recError = null;
+
+  // A ticker that keeps running in background tabs. Falls back to setInterval if workers cannot run.
+  function createTicker(ms, onTick) {
+    let worker = null;
+    let url = null;
+    let timer = null;
+    const useTimer = () => {
+      if (!timer) timer = setInterval(onTick, ms);
+    };
+    try {
+      url = URL.createObjectURL(
+        new Blob(
+          [
+            'let id = null;' +
+              'self.onmessage = (e) => {' +
+              '  clearInterval(id);' +
+              '  if (e.data === "stop") { self.close(); return; }' +
+              '  id = setInterval(() => self.postMessage(0), ' + Math.round(ms) + ');' +
+              '};',
+          ],
+          { type: 'text/javascript' }
+        )
+      );
+      worker = new Worker(url);
+      worker.onmessage = onTick;
+      worker.onerror = () => {
+        // The worker failed while running: carry on on the page's own timer.
+        try {
+          worker.terminate();
+        } catch (e) {
+          /* already stopped */
+        }
+        worker = null;
+        useTimer();
+      };
+      worker.postMessage('start');
+    } catch (e) {
+      worker = null;
+      useTimer();
+    }
+    return {
+      stop() {
+        if (worker) {
+          try {
+            worker.postMessage('stop');
+            worker.terminate();
+          } catch (e) {
+            /* already stopped */
+          }
+          worker = null;
+        }
+        if (timer) clearInterval(timer);
+        timer = null;
+        if (url) URL.revokeObjectURL(url);
+        url = null;
+      },
+    };
+  }
+
+  // True when every video that should be showing at time t has its frame ready.
+  function mediaReady(t) {
+    for (const { c, track } of activeAt(t)) {
+      if (c.kind !== 'media' || !track) continue;
+      const n = nodes.get(c.id);
+      if (!n || !n.el) continue;
+      if (n.el.readyState < 2 || n.el.seeking) return false;
+    }
+    return true;
+  }
+
+  // Waits (keeping the media moving to t) until the media is ready, or until ms have passed.
+  function waitReady(t, ms) {
+    return new Promise((resolve) => {
+      const t0 = performance.now();
+      const poll = () => {
+        if (!S.exporting) return resolve();
+        sync();
+        if (mediaReady(t) || performance.now() - t0 > ms) return resolve();
+        setTimeout(poll, 40);
+      };
+      poll();
+    });
+  }
+
+  // True when the recording opens with a video track that has a picture size.
+  function blobHasVideo(blob) {
+    return new Promise((resolve) => {
+      const v = document.createElement('video');
+      const url = URL.createObjectURL(blob);
+      let done = false;
+      const finish = (ok) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        URL.revokeObjectURL(url);
+        v.removeAttribute('src');
+        v.load();
+        resolve(ok);
+      };
+      const timer = setTimeout(() => finish(false), 8000);
+      v.muted = true;
+      v.preload = 'metadata';
+      v.onloadedmetadata = () => finish(v.videoWidth > 0);
+      v.onerror = () => finish(false);
+      v.src = url;
+    });
+  }
+
+  // Sends the picture at time t a few times before the clock starts. A recording whose first frames arrive
+  // one at a time can come out unreadable (short clips show it most), so the encoder gets a steady start.
+  function primeFrames(t) {
+    for (let i = 0; i < 10; i++) {
+      AVP.render.frame(ctx, t, getSource);
+      if (manualFrames && exportTrack) exportTrack.requestFrame();
+    }
+  }
+
+  // One export frame: move the playhead to the clock, draw it once, and capture it.
+  function exportTick() {
+    if (!S.exporting || !recStarted) return;
+    const now = performance.now();
+    const t = Math.min(exportEnd, exportStart + (now - exportClock0) / 1000);
+    S.playhead = t;
+    sync();
+    let draw = mediaReady(t);
+    if (draw) notReadySince = 0;
+    else {
+      if (!notReadySince) notReadySince = now;
+      // Hold the last picture while media catches up, but do not stall forever on media that cannot play.
+      draw = now - notReadySince > 1500;
+    }
+    if (draw) AVP.render.frame(ctx, t, getSource);
+    if (manualFrames && exportTrack) exportTrack.requestFrame();
+    if (t >= exportEnd - 1e-6) finishExport();
+  }
+
+  function restoreCanvasSize() {
+    if (savedSize) {
+      canvas.width = savedSize.w;
+      canvas.height = savedSize.h;
+      savedSize = null;
+    }
+  }
+
+  // Puts the preview canvas and the monitor back the way they were after an export.
+  function restoreAfterExport() {
+    restoreCanvasSize();
+    const ov = $('#exportOverlay');
+    if (ov) ov.classList.add('hidden');
+  }
+
   function startExport(opts) {
     if (S.exporting) return;
     const end = AVP.seqEnd();
@@ -567,35 +737,74 @@
       if (stopAt - start < 0.1) return AVP.toast('The work area is empty', 'warn');
     }
 
-    resumeAudio();
+    // H.264 and most encoders need even frame sizes.
+    const w = Math.max(2, Math.floor(opts.width / 2) * 2);
+    const h = Math.max(2, Math.floor(opts.height / 2) * 2);
     savedSize = { w: canvas.width, h: canvas.height };
-    canvas.width = opts.width;
-    canvas.height = opts.height;
+    canvas.width = w;
+    canvas.height = h;
 
-    const tracks = canvas.captureStream(S.fps).getVideoTracks().slice();
-    if (streamDest) tracks.push(...streamDest.stream.getAudioTracks());
+    // Manual capture: a frame is recorded only when requested, so the file has one frame per drawn frame.
+    let cs = canvas.captureStream(0);
+    exportTrack = cs.getVideoTracks()[0] || null;
+    manualFrames = !!(exportTrack && typeof exportTrack.requestFrame === 'function');
+    if (!manualFrames) {
+      cs = canvas.captureStream(S.fps);
+      exportTrack = cs.getVideoTracks()[0] || null;
+    }
+    const audio = streamDest ? streamDest.stream.getAudioTracks() : [];
+    if (!audio.length) AVP.toast('No sound will be recorded: audio is not available in this browser.', 'warn');
+    const tracks = (exportTrack ? [exportTrack] : []).concat(audio);
+
+    let rec;
     try {
-      recorder = new MediaRecorder(new MediaStream(tracks), {
+      rec = new MediaRecorder(new MediaStream(tracks), {
         mimeType: mime,
         videoBitsPerSecond: Math.round(opts.bitrate * 1000000),
+        audioBitsPerSecond: 160000,
       });
     } catch (err) {
-      restoreCanvasSize();
+      restoreAfterExport();
       return AVP.toast('Could not start recording: ' + err.message, 'error');
     }
-
+    recorder = rec;
     recChunks = [];
+    recStarted = false;
+    recError = null;
     recorder.ondataavailable = (ev) => {
       if (ev.data && ev.data.size) recChunks.push(ev.data);
     };
-    const ext = opts.format === 'mp4' ? 'mp4' : 'webm';
+    recorder.onerror = (ev) => {
+      recError = (ev.error && ev.error.message) || 'the recorder stopped unexpectedly';
+      finishExport();
+    };
+    const attempt = (opts && opts._attempt) || 1;
     recorder.onstop = () => {
-      const blob = new Blob(recChunks, { type: opts.format === 'mp4' ? 'video/mp4' : 'video/webm' });
-      AVP.download(blob, `${AVP.safeName(S.projectName)}.${ext}`);
-      AVP.toast(`Export saved as ${ext.toUpperCase()}`, 'ok');
-      restoreCanvasSize();
-      const ov = $('#exportOverlay');
-      if (ov) ov.classList.add('hidden');
+      const type = (recorder && recorder.mimeType) || mime;
+      const isMp4 = type.indexOf('mp4') >= 0;
+      const blob = new Blob(recChunks, { type: isMp4 ? 'video/mp4' : 'video/webm' });
+      const ext = isMp4 ? 'mp4' : 'webm';
+      recorder = null;
+      restoreAfterExport();
+      const save = (note) => {
+        AVP.download(blob, `${AVP.safeName(S.projectName)}.${ext}`);
+        const mb = (blob.size / (1024 * 1024)).toFixed(1);
+        if (recError) AVP.toast(`Export stopped early (${recError}). Saved ${ext.toUpperCase()}, ${mb} MB.`, 'warn');
+        else if (note) AVP.toast(`Saved ${ext.toUpperCase()}, ${mb} MB. ${note}`, 'warn');
+        else AVP.toast(`Export saved as ${ext.toUpperCase()}, ${mb} MB`, 'ok');
+      };
+      if (!blob.size) return AVP.toast('The export produced no data. Try again, or choose another format.', 'error');
+      if (recError) return save();
+      // A finished file must have a readable video track. If the recorder wrote none, record again.
+      blobHasVideo(blob).then((ok) => {
+        if (ok) return save();
+        if (attempt < 3) {
+          AVP.toast(`The browser did not write the video (attempt ${attempt} of 3). Recording again.`, 'warn');
+          startExport(Object.assign({}, opts, { _attempt: attempt + 1 }));
+          return;
+        }
+        save('This browser could not read the video back. If it will not play, export as WebM.');
+      });
     };
 
     exportStart = start;
@@ -603,26 +812,49 @@
     S.exporting = true;
     stop();
     S.playhead = start;
-    recorder.start(1000);
+    S.playing = true; // lets sync() start the media, in step with the export clock
+    S.playDir = 1;
+    resumeAudio();
     const ov = $('#exportOverlay');
     if (ov) ov.classList.remove('hidden');
-    AVP.toast('Exporting in real time. Keep this tab visible while it runs.');
-    play(1);
-  }
+    AVP.toast('Exporting in real time. Keep this window open while it runs.');
 
-  function restoreCanvasSize() {
-    if (savedSize) {
-      canvas.width = savedSize.w;
-      canvas.height = savedSize.h;
-      savedSize = null;
-    }
+    // Wait for the picture at the start (the media may still be loading) before the clock begins.
+    const audioWait = audioCtx && audioCtx.state === 'suspended' ? audioCtx.resume().catch(() => {}) : Promise.resolve();
+    Promise.all([audioWait, waitReady(start, 4000)]).then(() => {
+      if (!S.exporting) return restoreAfterExport(); // cancelled while waiting
+      recStarted = true;
+      recorder.start(1000);
+      primeFrames(start);
+      exportClock0 = performance.now();
+      notReadySince = 0;
+      exportTicker = createTicker(1000 / Math.max(1, S.fps), exportTick);
+      exportTick();
+    });
   }
 
   function finishExport() {
     if (!S.exporting) return;
     S.exporting = false;
+    if (exportTicker) {
+      exportTicker.stop();
+      exportTicker = null;
+    }
     stop();
-    if (recorder && recorder.state !== 'inactive') recorder.stop();
+    for (const n of nodes.values()) {
+      if (n.el && !n.el.paused) n.el.pause();
+    }
+    if (!recStarted || !recorder) {
+      // Cancelled before recording began: there is nothing to save.
+      recorder = null;
+      restoreAfterExport();
+      return;
+    }
+    if (recorder.state !== 'inactive') {
+      // Send the last picture, then stop. onstop saves the file.
+      if (manualFrames && exportTrack) exportTrack.requestFrame();
+      recorder.stop();
+    }
   }
 
   // Renders the frame at the playhead to a PNG file.
