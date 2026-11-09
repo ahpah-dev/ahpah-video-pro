@@ -501,6 +501,26 @@
       AVP.refresh();
     },
 
+    // Adds every effect of a look (AVP.LOOKS) to the clips, in one undo step.
+    addLook(clipIds, index) {
+      const look = AVP.LOOKS && AVP.LOOKS[index];
+      if (!look) return;
+      const list = clipIds.map(AVP.findClip).filter(Boolean);
+      if (!list.length) return AVP.toast('Select a clip first');
+      AVP.pushUndo();
+      list.forEach((c) =>
+        look.fx.forEach(([type, params]) => {
+          const fx = AVP.createEffect(type);
+          if (fx) {
+            Object.assign(fx.params, params);
+            c.fx.push(fx);
+          }
+        })
+      );
+      AVP.toast(`Applied the ${look.name} look`);
+      AVP.refresh();
+    },
+
     removeFx(clipId, fxId) {
       const c = AVP.findClip(clipId);
       if (!c) return;

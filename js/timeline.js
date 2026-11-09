@@ -795,6 +795,9 @@
     if (item.kind === 'effect') {
       if (!clipEl) return AVP.toast('Drop effects onto a clip', 'warn');
       AVP.edit.addFx([clipEl.dataset.id], item.type);
+    } else if (item.kind === 'look') {
+      if (!clipEl) return AVP.toast('Drop a look onto a clip', 'warn');
+      AVP.edit.addLook([clipEl.dataset.id], item.index);
     } else if (item.kind === 'transition') {
       if (!clipEl) return AVP.toast('Drop a transition on a clip: near a cut it goes at the cut, otherwise at the start or end', 'warn');
       const c = AVP.findClip(clipEl.dataset.id);

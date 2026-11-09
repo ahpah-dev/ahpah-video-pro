@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.24.0
+
+### New effects (11)
+- Stylize: Chromatic Aberration, Glitch, VHS Tape, Night Vision.
+- Distort: Wave Warp, Mirror. Blur: Radial Blur (Zoom).
+- Colour: Duotone, Threshold (black or white).
+- Transform: Camera Shake (smooth, repeatable movement) and Ken Burns (slow zoom and drift over the clip).
+- They start visible when added. Everything is drawn from the picture and the time, with no random numbers,
+  so an exported frame matches the preview.
+
+### New transitions (10, 27 in all)
+- Flash, Cross Zoom, Barn Doors (sideways and up and down), Diamond Wipe, Star Wipe, Bounce In, Spin Zoom,
+  Whip Pan Up and Glitch.
+
+### Looks
+- A new Looks list at the top of the Effects tab: Cinematic, Vintage Film, Film Noir, Dreamy Glow,
+  Cyberpunk, Old VHS, Glitch Hit, Night Vision, Duotone Pop, Slow Push In and Handheld. A look adds a
+  stack of effects in one undo step; drag it onto a clip or click it to apply it to the selection.
+
+### Checked
+- New `tests/newfx-test.js` (12 tests): effect defaults, transition maths, filters, and that every look
+  uses real effects with values in range.
+- Every new effect and transition was drawn through the real compositor with no errors.
+
 ## 1.23.0
 
 ### Premiere Pro 2024 look

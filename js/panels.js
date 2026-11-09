@@ -575,6 +575,11 @@
       );
     };
 
+    html += section('Looks', { 'One-click styles': AVP.LOOKS.map((l, i) => i) }, {
+      name: (i) => AVP.LOOKS[i].name,
+      drag: (i) => JSON.stringify({ kind: 'look', index: i }),
+      attrs: (i) => `data-dbl="look" data-type="${i}"`,
+    });
     html += section('Video Effects', groupBy(AVP.EFFECTS, (d) => d.cat), {
       name: (k) => AVP.EFFECTS[k].name,
       drag: (k) => JSON.stringify({ kind: 'effect', type: k }),
@@ -634,6 +639,7 @@
         const type = el.dataset.type;
         const kind = el.dataset.dbl;
         if (kind === 'effect') AVP.edit.addFx(S.selection.slice(), type);
+        else if (kind === 'look') AVP.edit.addLook(S.selection.slice(), +type);
         else if (kind === 'transition') {
           const c = AVP.selectedClips()[0];
           if (!c) return AVP.toast('Select a clip first');

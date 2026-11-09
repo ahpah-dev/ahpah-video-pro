@@ -70,13 +70,18 @@ Dragging a transition onto a cut shows where it will land:
 - **Effects** (Effect Controls or the Effects tab; drag onto a clip, or click an item to apply it to the selection):
   brightness and contrast, saturation, hue rotate, black and white, sepia, invert, blur,
   glow, mosaic, vignette, film grain, crop, flip, tint, drop shadow, light leak, lens flare,
-  scan lines and letterbox.
+  scan lines, letterbox, chromatic aberration, glitch, VHS tape, wave warp, mirror, radial blur,
+  duotone, threshold, night vision, camera shake and Ken Burns (slow zoom).
+- **Looks**: one-click styles in the Effects tab (Cinematic, Vintage Film, Film Noir, Dreamy Glow,
+  Cyberpunk, Old VHS, Glitch Hit, Night Vision, Duotone Pop, Slow Push In, Handheld). Each adds a stack
+  of effects you can then adjust or remove. Drag a look onto a clip, or click it to apply it to the selection.
 - **Motion**: position, scale, rotation and opacity, with keyframes (the stopwatch and
   diamond buttons). Each keyed control has a lane under it: click a keyframe to go to it, drag to move it. Keyframes also work on effect settings and volume.
-- **Transitions** (17 video, plus constant-gain audio fades): cross dissolve, blur dissolve, dip to black
+- **Transitions** (27 video, plus constant-gain audio fades): cross dissolve, blur dissolve, dip to black
   and white, wipes (left to right, right to left, top to bottom, diagonal, box from the centre, iris,
   clock, checkerboard, random blocks and venetian blinds), slides (left, right, top, bottom), zoom,
-  zoom through, whip pan and spin. Video transitions crossfade the linked audio.
+  zoom through, whip pan, spin, flash, cross zoom, barn doors, diamond and star wipes, bounce in,
+  spin zoom, whip pan up and glitch. Video transitions crossfade the linked audio.
 - **Drag and drop transitions**: drag one from the Effects tab onto the timeline. Drop it on a cut
   between two clips and it is centred on the cut; drop it near a clip's start or end and it goes there.
   A dashed box shows the span it will cover before you let go, and turns red when the transition does

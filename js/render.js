@@ -24,6 +24,26 @@
     'lens-flare': true,
     'scan-lines': true,
     letterbox: true,
+    chromatic: true,
+    glitch: true,
+    vhs: true,
+    wave: true,
+    mirror: true,
+    'radial-blur': true,
+    duotone: true,
+  };
+
+  // Deterministic pseudo-random value in [0, 1): the same moment always draws the same glitch.
+  const noise01 = (a, b) => {
+    const v = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
+    return v - Math.floor(v);
+  };
+  // Smooth random value for camera shake: eases between one random value per beat and the next.
+  const smoothNoise = (x, seed) => {
+    const i = Math.floor(x);
+    const f = x - i;
+    const u = f * f * (3 - 2 * f);
+    return (noise01(i, seed) * (1 - u) + noise01(i + 1, seed) * u) * 2 - 1;
   };
 
   let layer = null;
@@ -306,10 +326,33 @@
 
   // Paints the clip's own content onto target. Returns false while media is not ready.
   function paintContent(target, c, t, v, getSource, W, H) {
-    const px = AVP.propAt(c, 'x', t) / 100;
-    const py = AVP.propAt(c, 'y', t) / 100;
-    const sc = (AVP.propAt(c, 'scale', t) / 100) * v.scale;
-    const rot = ((AVP.propAt(c, 'rotation', t) + (v.rot || 0)) * Math.PI) / 180;
+    const fxOf = (type) => (c.fx || []).find((f) => f.type === type && f.enabled) || null;
+    const P = (f, k) => AVP.fxParamAt(c, f, k, t);
+    let px = AVP.propAt(c, 'x', t) / 100;
+    let py = AVP.propAt(c, 'y', t) / 100;
+    let zoom = 1;
+    let rollDeg = 0;
+    // Ken Burns: a slow zoom and drift over the length of the clip.
+    const kb = fxOf('ken-burns');
+    if (kb) {
+      const q = clamp01((t - c.start) / Math.max(0.001, c.duration));
+      const e = q * q * (3 - 2 * q);
+      zoom *= (P(kb, 'start') + (P(kb, 'end') - P(kb, 'start')) * e) / 100;
+      px += (P(kb, 'panX') * e) / 100;
+      py += (P(kb, 'panY') * e) / 100;
+    }
+    // Camera shake: smooth random movement, the same every time a moment is drawn.
+    const shake = fxOf('shake');
+    if (shake && P(shake, 'amount') > 0) {
+      const a = P(shake, 'amount') / 100;
+      const x = (t - c.start) * P(shake, 'speed');
+      px += smoothNoise(x, 1) * a * 0.5;
+      py += smoothNoise(x, 2) * a * 0.5;
+      rollDeg += smoothNoise(x, 3) * P(shake, 'roll');
+      zoom *= 1 + a * 1.2; // a little extra size so the edges do not show
+    }
+    const sc = (AVP.propAt(c, 'scale', t) / 100) * v.scale * zoom;
+    const rot = ((AVP.propAt(c, 'rotation', t) + (v.rot || 0) + rollDeg) * Math.PI) / 180;
     const cx = W / 2 + (px + v.dx) * W;
     const cy = H / 2 + (py + v.dy) * H;
     // Transitions can add blur (Blur Dissolve, Whip Pan) on top of the clip's own filters.
@@ -317,9 +360,6 @@
     const filter = HAS_FILTER && v.blur > 0.05
       ? (baseFilter === 'none' ? '' : baseFilter + ' ') + 'blur(' + v.blur.toFixed(2) + 'px)'
       : baseFilter;
-    const fxOf = (type) => (c.fx || []).find((f) => f.type === type && f.enabled) || null;
-    const P = (f, k) => AVP.fxParamAt(c, f, k, t);
-
     if (c.kind === 'title') {
       target.filter = filter;
       drawTitle(target, c, t, cx, cy, sc, rot, W, H);
@@ -427,6 +467,34 @@
         }
       }
     },
+    'barn-doors': (g, p, W, H) => {
+      g.rect((W / 2) * (1 - p), 0, W * p, H);
+    },
+    'barn-doors-v': (g, p, W, H) => {
+      g.rect(0, (H / 2) * (1 - p), W, H * p);
+    },
+    'diamond-wipe': (g, p, W, H) => {
+      const cx = W / 2;
+      const cy = H / 2;
+      g.moveTo(cx, cy - H * p);
+      g.lineTo(cx + W * p, cy);
+      g.lineTo(cx, cy + H * p);
+      g.lineTo(cx - W * p, cy);
+      g.closePath();
+    },
+    'star-wipe': (g, p, W, H) => {
+      // A five-point star that grows from the centre until it covers the whole frame.
+      const cx = W / 2;
+      const cy = H / 2;
+      const R = Math.max(0.5, p * Math.hypot(W, H) * 1.3);
+      for (let i = 0; i < 10; i++) {
+        const a = -Math.PI / 2 + (i * Math.PI) / 5;
+        const r = i % 2 === 0 ? R : R * 0.5;
+        if (i === 0) g.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+        else g.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+      }
+      g.closePath();
+    },
     blinds: (g, p, W, H) => {
       // Horizontal slats that open from the left, one after another down the frame.
       const n = 12;
@@ -476,6 +544,56 @@
       }
     }
     ctx.clip();
+  }
+
+  // A copy of the clip's layer, for effects that redraw the picture piece by piece.
+  let snap = null;
+  let snapCtx = null;
+  function snapshot(W, H) {
+    if (!snap) {
+      snap = document.createElement('canvas');
+      snapCtx = snap.getContext('2d');
+    }
+    if (snap.width !== W || snap.height !== H) {
+      snap.width = W;
+      snap.height = H;
+    }
+    snapCtx.setTransform(1, 0, 0, 1, 0, 0);
+    snapCtx.globalAlpha = 1;
+    snapCtx.globalCompositeOperation = 'source-over';
+    snapCtx.clearRect(0, 0, W, H);
+    snapCtx.drawImage(layer, 0, 0);
+    return snap;
+  }
+
+  // Redraws src into the layer with the red, green and blue channels each at their own offset ([dx, dy] x 3).
+  function splitChannels(src, W, H, offs) {
+    if (scratch.width !== W || scratch.height !== H) {
+      scratch.width = W;
+      scratch.height = H;
+    }
+    const cols = ['#ff0000', '#00ff00', '#0000ff'];
+    lctx.setTransform(1, 0, 0, 1, 0, 0);
+    lctx.globalAlpha = 1;
+    lctx.globalCompositeOperation = 'source-over';
+    lctx.clearRect(0, 0, W, H);
+    for (let i = 0; i < 3; i++) {
+      sctx.setTransform(1, 0, 0, 1, 0, 0);
+      sctx.globalAlpha = 1;
+      sctx.filter = 'none';
+      sctx.globalCompositeOperation = 'source-over';
+      sctx.clearRect(0, 0, W, H);
+      sctx.drawImage(src, offs[i][0], offs[i][1]);
+      sctx.globalCompositeOperation = 'multiply';
+      sctx.fillStyle = cols[i];
+      sctx.fillRect(0, 0, W, H);
+      sctx.globalCompositeOperation = 'destination-in'; // keep the picture's own shape and transparency
+      sctx.drawImage(src, offs[i][0], offs[i][1]);
+      sctx.globalCompositeOperation = 'source-over';
+      lctx.globalCompositeOperation = 'lighter';
+      lctx.drawImage(scratch, 0, 0);
+    }
+    lctx.globalCompositeOperation = 'source-over';
   }
 
   // Paints an effect on the picture only where the picture has content, so transparent areas stay clear.
@@ -570,6 +688,151 @@
       L.drawImage(scratch, 0, 0);
       L.globalAlpha = 1;
       L.globalCompositeOperation = 'source-over';
+    }
+
+    const chroma = fxOf('chromatic');
+    if (chroma && P(chroma, 'amount') > 0) {
+      const d = (P(chroma, 'amount') / 100) * 24 * (H / 1080);
+      const a = (P(chroma, 'angle') * Math.PI) / 180;
+      const dx = Math.cos(a) * d;
+      const dy = Math.sin(a) * d;
+      splitChannels(snapshot(W, H), W, H, [[dx, dy], [0, 0], [-dx, -dy]]);
+    }
+
+    const gl = fxOf('glitch');
+    if (gl && P(gl, 'amount') > 0) {
+      const amt = P(gl, 'amount') / 100;
+      const f = Math.floor(t * P(gl, 'rate'));
+      const n = Math.max(2, Math.round(P(gl, 'slices')));
+      const src = snapshot(W, H);
+      L.setTransform(1, 0, 0, 1, 0, 0);
+      L.globalAlpha = 1;
+      L.clearRect(0, 0, W, H);
+      for (let k = 0; k < n; k++) {
+        const sy = Math.floor((k * H) / n);
+        const sh = Math.ceil(H / n) + 1;
+        const shift = noise01(k, f) < amt * 0.8 ? (noise01(k + 11, f) - 0.5) * amt * 0.3 * W : 0;
+        L.drawImage(src, 0, sy, W, sh, shift, sy, W, sh);
+        if (shift) L.drawImage(src, 0, sy, W, sh, shift + (shift > 0 ? -W : W), sy, W, sh); // wrap round, so no gap opens
+      }
+      const rgb = P(gl, 'rgb') / 100;
+      if (rgb > 0 && noise01(f, 5) < 0.35 + amt * 0.5) {
+        const d = rgb * 12 * (H / 1080);
+        splitChannels(snapshot(W, H), W, H, [[d, 0], [0, 0], [-d, 0]]);
+      }
+    }
+
+    const vhs = fxOf('vhs');
+    if (vhs && P(vhs, 'amount') > 0) {
+      const amt = P(vhs, 'amount') / 100;
+      const u = H / 1080;
+      const strip = Math.max(2, Math.round(4 * u));
+      const f = Math.floor(t * 15);
+      const src = snapshot(W, H);
+      L.setTransform(1, 0, 0, 1, 0, 0);
+      L.globalAlpha = 1;
+      L.clearRect(0, 0, W, H);
+      // The tape wobbles sideways a little on every row, and a band rolls slowly up the picture.
+      const bandY = ((t * 0.18) % 1) * H;
+      const bandH = H * 0.07;
+      for (let y = 0; y < H; y += strip) {
+        let off = (noise01(Math.floor(y / strip), f) - 0.5) * amt * 6 * u;
+        if (y > bandY && y < bandY + bandH) off += amt * 28 * u * Math.sin(((y - bandY) / bandH) * Math.PI);
+        L.drawImage(src, 0, y, W, strip, off - amt * 4, y, W + amt * 8, strip);
+      }
+      const d = amt * 7 * u;
+      splitChannels(snapshot(W, H), W, H, [[d, 0], [0, 0], [-d, 0]]);
+      L.save();
+      L.fillStyle = `rgba(0, 0, 0, ${(amt * 0.28).toFixed(3)})`;
+      for (let y = 0; y < H; y += 3 * u * 2) L.fillRect(0, y, W, 3 * u);
+      L.restore();
+    }
+
+    const wv = fxOf('wave');
+    if (wv && P(wv, 'amount') > 0) {
+      const u = H / 1080;
+      const amt = P(wv, 'amount') * u;
+      const wl = Math.max(8, (P(wv, 'wavelength') / 100) * H);
+      const speed = P(wv, 'speed');
+      const strip = Math.max(2, Math.round(2 * u));
+      const src = snapshot(W, H);
+      L.setTransform(1, 0, 0, 1, 0, 0);
+      L.globalAlpha = 1;
+      L.clearRect(0, 0, W, H);
+      for (let y = 0; y < H; y += strip) {
+        const off = Math.sin((y / wl) * Math.PI * 2 + t * speed * Math.PI * 2) * amt;
+        L.drawImage(src, 0, y, W, strip, off - amt, y, W + 2 * amt, strip); // slightly wider so the edges stay covered
+      }
+    }
+
+    const mir = fxOf('mirror');
+    if (mir) {
+      const side = Math.round(P(mir, 'side'));
+      const src = snapshot(W, H);
+      L.setTransform(1, 0, 0, 1, 0, 0);
+      L.globalAlpha = 1;
+      L.clearRect(0, 0, W, H);
+      if (side === 0 || side === 1) {
+        const x0 = side === 0 ? 0 : W / 2;
+        L.drawImage(src, x0, 0, W / 2, H, x0, 0, W / 2, H);
+        L.save();
+        L.translate(W, 0);
+        L.scale(-1, 1);
+        L.drawImage(src, x0, 0, W / 2, H, x0, 0, W / 2, H);
+        L.restore();
+      } else {
+        const y0 = side === 2 ? 0 : H / 2;
+        L.drawImage(src, 0, y0, W, H / 2, 0, y0, W, H / 2);
+        L.save();
+        L.translate(0, H);
+        L.scale(1, -1);
+        L.drawImage(src, 0, y0, W, H / 2, 0, y0, W, H / 2);
+        L.restore();
+      }
+    }
+
+    const rb = fxOf('radial-blur');
+    if (rb && P(rb, 'amount') > 0) {
+      const grow = (P(rb, 'amount') / 100) * 0.25;
+      const cx = (P(rb, 'x') / 100) * W;
+      const cy = (P(rb, 'y') / 100) * H;
+      const src = snapshot(W, H);
+      const n = 10;
+      L.setTransform(1, 0, 0, 1, 0, 0);
+      L.clearRect(0, 0, W, H);
+      for (let i = 0; i < n; i++) {
+        const k = 1 + grow * (i / (n - 1));
+        L.save();
+        L.globalAlpha = 1 / (i + 1); // each pass weighs the same in the final average
+        L.translate(cx, cy);
+        L.scale(k, k);
+        L.translate(-cx, -cy);
+        L.drawImage(src, 0, 0);
+        L.restore();
+      }
+    }
+
+    const duo = fxOf('duotone');
+    if (duo && P(duo, 'amount') > 0) {
+      const sh = P(duo, 'shadow');
+      const hi = P(duo, 'highlight');
+      overlayOnPicture(
+        W,
+        H,
+        (g) => {
+          if (HAS_FILTER) g.filter = 'grayscale(1) contrast(1.1)';
+          g.drawImage(layer, 0, 0);
+          g.filter = 'none';
+          g.globalCompositeOperation = 'multiply';
+          g.fillStyle = `hsl(${hi.toFixed(1)}, 90%, 62%)`;
+          g.fillRect(0, 0, W, H);
+          g.globalCompositeOperation = 'lighten';
+          g.fillStyle = `hsl(${sh.toFixed(1)}, 80%, 18%)`;
+          g.fillRect(0, 0, W, H);
+        },
+        'source-over',
+        P(duo, 'amount') / 100
+      );
     }
 
     const vig = fxOf('vignette');

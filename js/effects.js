@@ -196,7 +196,108 @@
       cat: 'Transform',
       params: [{ k: 'size', label: 'Bar height', min: 0, max: 40, def: 0, unit: '%' }],
     },
+    chromatic: {
+      name: 'Chromatic Aberration',
+      cat: 'Stylize',
+      params: [
+        { k: 'amount', label: 'Amount', min: 0, max: 100, def: 30, unit: '%' },
+        { k: 'angle', label: 'Direction', min: 0, max: 360, def: 0, unit: '°' },
+      ],
+    },
+    glitch: {
+      name: 'Glitch',
+      cat: 'Stylize',
+      params: [
+        { k: 'amount', label: 'Amount', min: 0, max: 100, def: 40, unit: '%' },
+        { k: 'slices', label: 'Slices', min: 2, max: 40, def: 12 },
+        { k: 'rate', label: 'Changes per second', min: 1, max: 30, def: 8 },
+        { k: 'rgb', label: 'Colour split', min: 0, max: 100, def: 40, unit: '%' },
+      ],
+    },
+    vhs: {
+      name: 'VHS Tape',
+      cat: 'Stylize',
+      params: [{ k: 'amount', label: 'Amount', min: 0, max: 100, def: 50, unit: '%' }],
+    },
+    wave: {
+      name: 'Wave Warp',
+      cat: 'Distort',
+      params: [
+        { k: 'amount', label: 'Height', min: 0, max: 100, def: 20, unit: 'px' },
+        { k: 'wavelength', label: 'Wavelength', min: 10, max: 100, def: 40, unit: '%' },
+        { k: 'speed', label: 'Speed', min: 0, max: 10, def: 2, step: 0.1 },
+      ],
+    },
+    mirror: {
+      name: 'Mirror',
+      cat: 'Distort',
+      params: [{ k: 'side', label: 'Side (0 left, 1 right, 2 top, 3 bottom)', min: 0, max: 3, def: 0 }],
+    },
+    'radial-blur': {
+      name: 'Radial Blur (Zoom)',
+      cat: 'Blur & Sharpen',
+      params: [
+        { k: 'amount', label: 'Amount', min: 0, max: 100, def: 30, unit: '%' },
+        { k: 'x', label: 'Centre X', min: 0, max: 100, def: 50, unit: '%' },
+        { k: 'y', label: 'Centre Y', min: 0, max: 100, def: 50, unit: '%' },
+      ],
+    },
+    duotone: {
+      name: 'Duotone',
+      cat: 'Color Correction',
+      params: [
+        { k: 'shadow', label: 'Shadow colour (hue)', min: 0, max: 360, def: 240, unit: '°' },
+        { k: 'highlight', label: 'Highlight colour (hue)', min: 0, max: 360, def: 35, unit: '°' },
+        { k: 'amount', label: 'Amount', min: 0, max: 100, def: 100, unit: '%' },
+      ],
+    },
+    threshold: {
+      name: 'Threshold (Black or White)',
+      cat: 'Color Correction',
+      params: [{ k: 'level', label: 'Level', min: 5, max: 95, def: 50, unit: '%' }],
+    },
+    'night-vision': {
+      name: 'Night Vision',
+      cat: 'Stylize',
+      params: [{ k: 'gain', label: 'Gain', min: 50, max: 300, def: 140, unit: '%' }],
+    },
+    shake: {
+      name: 'Camera Shake',
+      cat: 'Transform',
+      params: [
+        { k: 'amount', label: 'Strength', min: 0, max: 30, def: 4, step: 0.1, unit: '%' },
+        { k: 'speed', label: 'Speed', min: 1, max: 30, def: 12, unit: ' Hz' },
+        { k: 'roll', label: 'Roll', min: 0, max: 10, def: 0.6, step: 0.1, unit: '°' },
+      ],
+    },
+    'ken-burns': {
+      name: 'Ken Burns (Slow Zoom)',
+      cat: 'Transform',
+      params: [
+        { k: 'start', label: 'Start scale', min: 50, max: 300, def: 100, unit: '%' },
+        { k: 'end', label: 'End scale', min: 50, max: 300, def: 125, unit: '%' },
+        { k: 'panX', label: 'Drift X', min: -50, max: 50, def: 0, unit: '%' },
+        { k: 'panY', label: 'Drift Y', min: -50, max: 50, def: 0, unit: '%' },
+      ],
+    },
   };
+
+  /*
+   * Looks: one click adds a stack of effects to a clip. Each entry is [effect type, parameter overrides].
+   */
+  AVP.LOOKS = [
+    { name: 'Cinematic', fx: [['brightness', { contrast: 14 }], ['saturation', { amount: 92 }], ['tint', { hue: 200, amount: 12 }], ['vignette', { amount: 40, size: 55 }], ['letterbox', { size: 11 }]] },
+    { name: 'Vintage Film', fx: [['sepia', { amount: 45 }], ['brightness', { brightness: 4, contrast: -8 }], ['grain', { amount: 35 }], ['vignette', { amount: 45, size: 50 }]] },
+    { name: 'Film Noir', fx: [['grayscale', { amount: 100 }], ['brightness', { contrast: 30 }], ['vignette', { amount: 55, size: 45 }], ['grain', { amount: 25 }]] },
+    { name: 'Dreamy Glow', fx: [['glow', { amount: 45, radius: 26 }], ['brightness', { brightness: 6 }], ['saturation', { amount: 115 }]] },
+    { name: 'Cyberpunk', fx: [['tint', { hue: 300, amount: 22 }], ['saturation', { amount: 130 }], ['chromatic', { amount: 35, angle: 0 }], ['glow', { amount: 25, radius: 18 }], ['scan-lines', { amount: 18, spacing: 4 }]] },
+    { name: 'Old VHS', fx: [['vhs', { amount: 60 }], ['saturation', { amount: 120 }], ['grain', { amount: 20 }]] },
+    { name: 'Glitch Hit', fx: [['glitch', { amount: 60, slices: 14, rate: 10, rgb: 55 }], ['chromatic', { amount: 25, angle: 0 }]] },
+    { name: 'Night Vision', fx: [['night-vision', { gain: 150 }], ['grain', { amount: 30 }], ['vignette', { amount: 50, size: 45 }]] },
+    { name: 'Duotone Pop', fx: [['duotone', { shadow: 265, highlight: 20, amount: 100 }], ['brightness', { contrast: 10 }]] },
+    { name: 'Slow Push In', fx: [['ken-burns', { start: 100, end: 122, panX: 0, panY: 0 }]] },
+    { name: 'Handheld', fx: [['shake', { amount: 2.5, speed: 9, roll: 0.4 }]] },
+  ];
 
   AVP.effectParamDef = function (type, k) {
     const def = AVP.EFFECTS[type];
@@ -237,6 +338,16 @@
     'checker-wipe': { name: 'Checkerboard Wipe', cat: 'Wipe', dur: 1, audio: false },
     'random-blocks': { name: 'Random Blocks', cat: 'Wipe', dur: 1, audio: false },
     blinds: { name: 'Venetian Blinds', cat: 'Wipe', dur: 1, audio: false },
+    flash: { name: 'Flash', cat: 'Dissolve', dur: 0.6, audio: false },
+    'cross-zoom': { name: 'Cross Zoom', cat: 'Dissolve', dur: 1, audio: false },
+    'barn-doors': { name: 'Barn Doors (open sideways)', cat: 'Wipe', dur: 1, audio: false },
+    'barn-doors-v': { name: 'Barn Doors (open up and down)', cat: 'Wipe', dur: 1, audio: false },
+    'diamond-wipe': { name: 'Diamond Wipe', cat: 'Wipe', dur: 1, audio: false },
+    'star-wipe': { name: 'Star Wipe', cat: 'Wipe', dur: 1, audio: false },
+    'bounce-in': { name: 'Bounce In', cat: 'Motion', dur: 1, audio: false },
+    'spin-zoom': { name: 'Spin Zoom', cat: 'Motion', dur: 1, audio: false },
+    'whip-pan-up': { name: 'Whip Pan Up', cat: 'Motion', dur: 1, audio: false },
+    glitch: { name: 'Glitch', cat: 'Stylized', dur: 0.8, audio: false },
     'audio-fade': { name: 'Constant Gain (Audio Fade)', cat: 'Audio', dur: 1, audio: true },
   };
 
@@ -707,8 +818,43 @@
       case 'checker-wipe':
       case 'random-blocks':
       case 'blinds':
+      case 'barn-doors':
+      case 'barn-doors-v':
+      case 'diamond-wipe':
+      case 'star-wipe':
         v.mask = { type: role.type, p };
         break;
+      case 'flash':
+        if (role.centered) {
+          v.alpha *= p < 0.5 ? 0 : 1;
+          v.before = { color: '#ffffff', alpha: Math.pow(Math.sin(Math.PI * p), 0.7) };
+        } else {
+          v.before = { color: '#ffffff', alpha: Math.pow(1 - p, 2) };
+        }
+        break;
+      case 'cross-zoom':
+        v.alpha *= p;
+        v.scale *= 2 - p;
+        v.blur += (1 - p) * 18;
+        break;
+      case 'bounce-in':
+        v.dy -= 1 - AVP.ease.bounce(p);
+        break;
+      case 'spin-zoom':
+        v.alpha *= clamp01(p * 2);
+        v.rot += (p - 1) * 360;
+        v.scale *= p;
+        break;
+      case 'whip-pan-up':
+        v.dy += 1 - p;
+        v.blur += Math.sin(Math.PI * p) * 24;
+        break;
+      case 'glitch': {
+        const f = Math.floor(p * 14);
+        v.alpha *= noise01(f, 3) >= p * 1.3 ? 0 : 1;
+        v.dx += (noise01(f, 9) - 0.5) * 0.25 * (1 - p);
+        break;
+      }
       default:
         break; // audio-fade and unknown types leave the picture alone
     }
@@ -775,8 +921,43 @@
       case 'checker-wipe':
       case 'random-blocks':
       case 'blinds':
+      case 'barn-doors':
+      case 'barn-doors-v':
+      case 'diamond-wipe':
+      case 'star-wipe':
         if (!role.centered) v.alpha *= 1 - p;
         break;
+      case 'flash':
+        if (role.centered) v.alpha *= p < 0.5 ? 1 : 0;
+        else {
+          v.alpha *= 1 - p;
+          v.after = { color: '#ffffff', alpha: p };
+        }
+        break;
+      case 'cross-zoom':
+        v.alpha *= 1 - p;
+        v.scale *= 1 + p;
+        v.blur += p * 18;
+        break;
+      case 'bounce-in':
+        v.dy += p * p;
+        v.alpha *= 1 - p * 0.6;
+        break;
+      case 'spin-zoom':
+        v.alpha *= 1 - p;
+        v.rot += p * 180;
+        v.scale *= 1 + p * 0.5;
+        break;
+      case 'whip-pan-up':
+        v.dy -= p;
+        v.blur += Math.sin(Math.PI * p) * 24;
+        break;
+      case 'glitch': {
+        const f = Math.floor(p * 14);
+        v.alpha *= noise01(f, 3) < (1 - p) * 1.3 ? 1 : 0;
+        v.dx += (noise01(f, 9) - 0.5) * 0.25 * p;
+        break;
+      }
       default:
         break;
     }
@@ -893,6 +1074,15 @@
           if (r > 0) parts.push(`blur(${r.toFixed(2)}px)`);
           break;
         }
+        case 'threshold': {
+          // Brightness moves the chosen level to mid-grey, then a huge contrast pushes everything to black or white.
+          const level = clamp(P('level'), 5, 95) / 100;
+          parts.push('grayscale(1)', `brightness(${(0.5 / level).toFixed(3)})`, 'contrast(10000%)');
+          break;
+        }
+        case 'night-vision':
+          parts.push('grayscale(1)', 'contrast(1.25)', `brightness(${(P('gain') / 100).toFixed(3)})`, 'sepia(1)', 'hue-rotate(62deg)', 'saturate(3)');
+          break;
         default:
           break;
       }
