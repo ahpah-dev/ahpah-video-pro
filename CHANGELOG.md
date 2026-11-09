@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.18.0
+
+### Timeline previews
+- Video and image clips show their frames on the timeline, so you can see what is in a clip without
+  opening it. Before, only the name was shown.
+- The filmstrip is sampled evenly across the source's length and moves with the clip's in point, so
+  trimming or slipping a clip shows the matching frames. It follows the zoom level.
+- Image clips repeat their picture along the clip.
+- Filmstrips are built in the background after import, and rebuilt after recovery or relinking. They are
+  not saved in the project file.
+
 ## 1.17.0
 
 ### Drag and drop transitions

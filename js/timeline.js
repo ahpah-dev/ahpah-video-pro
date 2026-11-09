@@ -132,6 +132,16 @@
       wave = ' wv-' + m.id;
       style += `background-size:${full}px 100%;background-position:${-(c.inPoint / sp) * S.zoom}px 0;`;
     }
+    // Video and image clips show their frames: a filmstrip of the source, moved with the clip's in point.
+    if (m && m.strip && !onAudioTrack && kind !== 'title' && kind !== 'shape') {
+      wave = ' fs-' + m.id;
+      if (kind === 'image') style += 'background-size:auto 100%;background-position:0 0;background-repeat:repeat-x;';
+      else {
+        const sp = c.speed || 1;
+        const full = (m.duration / sp) * S.zoom;
+        style += `background-size:${full}px 100%;background-position:${-(c.inPoint / sp) * S.zoom}px 0;background-repeat:no-repeat;`;
+      }
+    }
     let label = kind === 'title' ? c.text.text.split('\n')[0] || 'Title' : kind === 'shape' ? (c.shape.type === 'ellipse' ? 'Ellipse' : 'Rectangle') : m ? m.name : 'Missing media';
     if (c.speed && c.speed !== 1) label += `  ${Math.round(c.speed * 100)}%`;
     if (c.fx && c.fx.length) label += `  fx${c.fx.length}`;

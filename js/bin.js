@@ -139,12 +139,121 @@
       });
   }
 
+  /* ---------- filmstrips: video and image frames shown on the timeline clips ---------- */
+
+  const STRIP_H = 40; // px height of a frame in the strip
+  const STRIP_W = Math.round((STRIP_H * 16) / 9); // 16:9 frames
+  const STRIP_MAX = 60; // at most this many frames per video
+
+  // Writes one CSS rule per media item that has a filmstrip. Rebuilt whole so no stale rule survives.
+  function refreshStripRules() {
+    let style = document.getElementById('strip-styles');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'strip-styles';
+      document.head.appendChild(style);
+    }
+    style.textContent = S.media
+      .filter((m) => m.strip)
+      .map((m) => `.clip.fs-${m.id}{background-image:linear-gradient(rgba(0,0,0,.25),rgba(0,0,0,.25)),url("${m.strip}")}`)
+      .join('\n');
+  }
+
+  // Draws an image into a frame, cropped to fill it (like object-fit: cover).
+  function drawCover(g, src, sw, sh, dw, dh, ox) {
+    const k = Math.max(dw / sw, dh / sh);
+    const w = sw * k;
+    const h = sh * k;
+    g.drawImage(src, (ox || 0) + (dw - w) / 2, (dh - h) / 2, w, h);
+  }
+
+  // Builds the filmstrip for a media item: frames sampled evenly across its length. Frame i shows
+  // the moment (i + 0.5) / n of the way through, so a clip's frames line up with its time on the timeline.
+  function buildStrip(media) {
+    if (!media || !media.url || media.error) return Promise.resolve();
+    const token = (media.stripToken = (media.stripToken || 0) + 1);
+    const done = (url) => {
+      if (media.stripToken !== token) return;
+      media.strip = url;
+      refreshStripRules();
+      AVP.timeline.render();
+    };
+    if (media.type === 'image') {
+      const img = new Image();
+      img.onload = () => {
+        const cv = document.createElement('canvas');
+        cv.width = STRIP_W;
+        cv.height = STRIP_H;
+        drawCover(cv.getContext('2d'), img, img.naturalWidth, img.naturalHeight, STRIP_W, STRIP_H);
+        done(cv.toDataURL('image/jpeg', 0.8));
+      };
+      img.src = media.url;
+      return Promise.resolve();
+    }
+    if (media.type !== 'video' || !(media.duration > 0)) return Promise.resolve();
+    return new Promise((resolve) => {
+      const el = document.createElement('video');
+      el.muted = true;
+      el.preload = 'auto';
+      el.playsInline = true;
+      const n = Math.max(4, Math.min(STRIP_MAX, Math.round(media.duration)));
+      const cv = document.createElement('canvas');
+      cv.width = n * STRIP_W;
+      cv.height = STRIP_H;
+      const g = cv.getContext('2d');
+      const once = (ms) =>
+        new Promise((ok) => {
+          const t = setTimeout(ok, ms);
+          el.onloadeddata = () => {
+            clearTimeout(t);
+            ok();
+          };
+          el.onerror = () => {
+            clearTimeout(t);
+            ok();
+          };
+        });
+      const seek = (t) =>
+        new Promise((ok) => {
+          const to = setTimeout(ok, 2500);
+          el.onseeked = () => {
+            clearTimeout(to);
+            ok();
+          };
+          el.currentTime = t;
+        });
+      el.src = media.url;
+      once(6000)
+        .then(async () => {
+          if (!el.videoWidth) return null;
+          for (let i = 0; i < n; i++) {
+            if (media.stripToken !== token) return null;
+            const t = Math.min(media.duration - 0.05, ((i + 0.5) * media.duration) / n);
+            await seek(Math.max(0, t));
+            // Each frame goes in its own cell of the strip.
+            if (el.videoWidth) drawCover(g, el, el.videoWidth, el.videoHeight, STRIP_W, STRIP_H, i * STRIP_W);
+          }
+          return cv.toDataURL('image/jpeg', 0.8);
+        })
+        .then((url) => {
+          if (url) done(url);
+          el.removeAttribute('src');
+          el.load();
+          resolve();
+        })
+        .catch(() => resolve());
+    });
+  }
+
   // Reads duration / size and grabs a thumbnail frame for one media item.
   // The clip keeps the file's full length. Recorded WebM files often report no duration;
   // those are measured by seeking to the end, and the decoded audio is the fallback.
   function probe(media) {
     return new Promise((resolve) => {
-      const finish = () => resolve(media);
+      const finish = () => {
+        resolve(media);
+        buildStrip(media); // the filmstrip builds in the background; the clip shows it when ready
+      };
 
       if (media.type === 'image') {
         const img = new Image();

@@ -56,6 +56,7 @@ Dragging a transition onto a cut shows where it will land:
 - **Import** video, audio and still images. Imported clips keep their full original length
   (images use 5 seconds by default). Waveforms are drawn on audio and video clips.
 - **Timeline**
+  - Video and image clips show their frames: a filmstrip of the source, moved with the clip's in point and scaled with the zoom.
   - Three video and three audio tracks, with add / delete track, show / hide, mute and lock.
   - Move clips (including between tracks of the same type) and trim from either edge.
   - Dropped and trimmed clips overwrite what is beneath them.
