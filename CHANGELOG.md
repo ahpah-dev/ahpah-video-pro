@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.8.0
+
+### Layout
+- Drag the gaps between the panels to resize them, and drag the gap above the timeline to make the
+  timeline taller or shorter. Each workspace keeps its own sizes, and they scale with the window.
+- Double-click a gap to return that workspace to its starting sizes.
+- The panel tabs scroll by mouse wheel or by dragging, so the Graphics tab can be reached in a narrow
+  panel. The project name moved to the bottom of the Project panel.
+- Larger controls above the timeline: taller panel tabs and headers, bigger buttons, timecode and
+  tool palette, and taller tracks.
+- The timeline pans with the middle mouse button in any direction, and the hand tool pans up and down
+  as well as across.
+
+### Effects
+- New: Tint, Drop Shadow, Light Leak, Lens Flare, Scan Lines and Letterbox.
+
+### Transitions
+- New: Diagonal Wipe, Box Wipe (from centre), Iris (circle), Slide In From Top, Slide In From Bottom
+  and Spin.
+
+### Titles and fonts
+- The font list shows the fonts installed on this computer (45 of the 62 candidates were installed on
+  the Windows machine this release was tested on).
+- Add font: import a .ttf, .otf or .woff file. It is saved in the project, so it opens on any
+  computer. Files over 15 MB are refused. Very large projects can be too big for autosave, but saving
+  the project file always works.
+
 ## 1.7.0
 
 ### Design

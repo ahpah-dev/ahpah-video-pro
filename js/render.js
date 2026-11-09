@@ -14,7 +14,17 @@
   const clamp01 = (v) => Math.min(1, Math.max(0, v));
 
   const HAS_FILTER = typeof CanvasRenderingContext2D !== 'undefined' && 'filter' in CanvasRenderingContext2D.prototype;
-  const POST_EFFECTS = { mosaic: true, glow: true, vignette: true, grain: true };
+  const POST_EFFECTS = {
+    mosaic: true,
+    glow: true,
+    vignette: true,
+    grain: true,
+    tint: true,
+    'light-leak': true,
+    'lens-flare': true,
+    'scan-lines': true,
+    letterbox: true,
+  };
 
   let layer = null;
   let lctx = null;
@@ -211,7 +221,7 @@
     const px = AVP.propAt(c, 'x', t) / 100;
     const py = AVP.propAt(c, 'y', t) / 100;
     const sc = (AVP.propAt(c, 'scale', t) / 100) * v.scale;
-    const rot = (AVP.propAt(c, 'rotation', t) * Math.PI) / 180;
+    const rot = ((AVP.propAt(c, 'rotation', t) + (v.rot || 0)) * Math.PI) / 180;
     const cx = W / 2 + (px + v.dx) * W;
     const cy = H / 2 + (py + v.dy) * H;
     const filter = HAS_FILTER ? AVP.buildFilter(c, t) : 'none';
@@ -251,9 +261,92 @@
       target.clip();
     }
     target.filter = filter;
+    const ds = fxOf('drop-shadow');
+    if (ds && P(ds, 'opacity') > 0) {
+      // Shadow offset and softness are in frame pixels (1080p-based), not in the clip's rotated space.
+      const a = (P(ds, 'angle') * Math.PI) / 180;
+      const d = P(ds, 'distance') * (H / 1080);
+      target.shadowColor = `rgba(0, 0, 0, ${(P(ds, 'opacity') / 100).toFixed(3)})`;
+      target.shadowBlur = P(ds, 'softness') * (H / 1080);
+      target.shadowOffsetX = Math.cos(a) * d;
+      target.shadowOffsetY = Math.sin(a) * d;
+    }
     target.drawImage(s.src, -dw / 2, -dh / 2, dw, dh);
     target.restore();
     return true;
+  }
+
+  // Clips drawing to a wipe rectangle, or to a transition mask (diagonal wipe, box wipe, iris).
+  // The diagonal wipe keeps the part of the frame where x + y is below a sweeping line.
+  function halfPlane(poly, s) {
+    const out = [];
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i];
+      const b = poly[(i + 1) % poly.length];
+      const fa = s - (a[0] + a[1]);
+      const fb = s - (b[0] + b[1]);
+      if (fa >= 0) out.push(a);
+      if ((fa >= 0) !== (fb >= 0)) {
+        const k = fa / (fa - fb);
+        out.push([a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]);
+      }
+    }
+    return out;
+  }
+
+  function clipToVisual(ctx, v, W, H) {
+    if (v.clip) {
+      ctx.beginPath();
+      ctx.rect(v.clip.x * W, v.clip.y * H, v.clip.w * W, v.clip.h * H);
+      ctx.clip();
+    }
+    const m = v.mask;
+    if (!m) return;
+    ctx.beginPath();
+    if (m.type === 'iris') {
+      ctx.arc(W / 2, H / 2, Math.max(0.001, Math.hypot(W / 2, H / 2) * m.p), 0, Math.PI * 2);
+    } else if (m.type === 'wipe-box') {
+      const hw = (W / 2) * m.p;
+      const hh = (H / 2) * m.p;
+      ctx.rect(W / 2 - hw, H / 2 - hh, 2 * hw, 2 * hh);
+    } else if (m.type === 'wipe-diag') {
+      const poly = halfPlane(
+        [
+          [0, 0],
+          [W, 0],
+          [W, H],
+          [0, H],
+        ],
+        (W + H) * m.p
+      );
+      if (poly.length >= 3) {
+        ctx.moveTo(poly[0][0], poly[0][1]);
+        for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i][0], poly[i][1]);
+        ctx.closePath();
+      }
+    }
+    ctx.clip();
+  }
+
+  // Paints an effect on the picture only where the picture has content, so transparent areas stay clear.
+  function overlayOnPicture(W, H, paint, blend, alpha) {
+    if (scratch.width !== W || scratch.height !== H) {
+      scratch.width = W;
+      scratch.height = H;
+    }
+    sctx.setTransform(1, 0, 0, 1, 0, 0);
+    sctx.globalAlpha = 1;
+    sctx.globalCompositeOperation = 'source-over';
+    sctx.clearRect(0, 0, W, H);
+    paint(sctx);
+    sctx.globalCompositeOperation = 'destination-in';
+    sctx.drawImage(layer, 0, 0);
+    sctx.globalCompositeOperation = 'source-over';
+    lctx.save();
+    lctx.globalCompositeOperation = blend;
+    lctx.globalAlpha = alpha;
+    lctx.drawImage(scratch, 0, 0);
+    lctx.restore();
   }
 
   // Lumetri Color: grades the clip's layer on the GPU (no-op when WebGL is unavailable).
@@ -351,17 +444,93 @@
       L.fillRect(-256, -256, W + 512, H + 512);
       L.restore();
     }
+
+    const tint = fxOf('tint');
+    if (tint && P(tint, 'amount') > 0) {
+      const hue = P(tint, 'hue');
+      overlayOnPicture(
+        W,
+        H,
+        (g) => {
+          g.drawImage(layer, 0, 0);
+          g.globalCompositeOperation = 'color';
+          g.fillStyle = `hsl(${hue.toFixed(1)}, 100%, 50%)`;
+          g.fillRect(0, 0, W, H);
+        },
+        'source-over',
+        P(tint, 'amount') / 100
+      );
+    }
+
+    const leak = fxOf('light-leak');
+    if (leak && P(leak, 'amount') > 0) {
+      const hue = P(leak, 'hue');
+      const cx = (P(leak, 'x') / 100) * W;
+      const cy = (P(leak, 'y') / 100) * H;
+      const r = (P(leak, 'size') / 100) * Math.max(W, H) * 0.5;
+      const amt = P(leak, 'amount') / 100;
+      overlayOnPicture(
+        W,
+        H,
+        (g) => {
+          const grad = g.createRadialGradient(cx, cy, 0, cx, cy, r);
+          grad.addColorStop(0, `hsla(${hue}, 100%, 62%, ${amt})`);
+          grad.addColorStop(0.45, `hsla(${hue}, 100%, 50%, ${amt * 0.45})`);
+          grad.addColorStop(1, `hsla(${hue}, 100%, 45%, 0)`);
+          g.fillStyle = grad;
+          g.fillRect(0, 0, W, H);
+        },
+        'screen',
+        1
+      );
+    }
+
+    const flare = fxOf('lens-flare');
+    if (flare && P(flare, 'amount') > 0) {
+      const cx = (P(flare, 'x') / 100) * W;
+      const cy = (P(flare, 'y') / 100) * H;
+      const r = (P(flare, 'size') / 100) * Math.max(W, H) * 0.5;
+      overlayOnPicture(
+        W,
+        H,
+        (g) => {
+          const grad = g.createRadialGradient(cx, cy, 0, cx, cy, r);
+          grad.addColorStop(0, 'rgba(255, 250, 235, 1)');
+          grad.addColorStop(0.18, 'rgba(255, 214, 150, 0.55)');
+          grad.addColorStop(1, 'rgba(255, 170, 90, 0)');
+          g.fillStyle = grad;
+          g.fillRect(0, 0, W, H);
+        },
+        'screen',
+        P(flare, 'amount') / 100
+      );
+    }
+
+    const lines = fxOf('scan-lines');
+    if (lines && P(lines, 'amount') > 0) {
+      const step = Math.max(2, P(lines, 'spacing') * (H / 1080));
+      L.save();
+      L.fillStyle = `rgba(0, 0, 0, ${(P(lines, 'amount') / 100).toFixed(3)})`;
+      for (let y = 0; y < H; y += step) L.fillRect(0, y, W, step / 2);
+      L.restore();
+    }
+
+    const box = fxOf('letterbox');
+    if (box && P(box, 'size') > 0) {
+      const bar = (P(box, 'size') / 100) * H;
+      L.save();
+      L.fillStyle = '#000';
+      L.fillRect(0, 0, W, bar);
+      L.fillRect(0, H - bar, W, bar);
+      L.restore();
+    }
   }
 
   // Draws one visible clip. `alpha` already includes transitions and opacity.
   function paintClip(ctx, c, t, v, alpha, getSource, W, H) {
     if (!needsLayer(c)) {
       ctx.save();
-      if (v.clip) {
-        ctx.beginPath();
-        ctx.rect(v.clip.x * W, v.clip.y * H, v.clip.w * W, v.clip.h * H);
-        ctx.clip();
-      }
+      clipToVisual(ctx, v, W, H);
       ctx.globalAlpha = alpha;
       paintContent(ctx, c, t, v, getSource, W, H);
       ctx.restore();
@@ -377,11 +546,7 @@
     applyLumetri(c, t, W, H);
     applyLayerEffects(c, t, W, H);
     ctx.save();
-    if (v.clip) {
-      ctx.beginPath();
-      ctx.rect(v.clip.x * W, v.clip.y * H, v.clip.w * W, v.clip.h * H);
-      ctx.clip();
-    }
+    clipToVisual(ctx, v, W, H);
     ctx.globalAlpha = alpha;
     ctx.drawImage(layer, 0, 0);
     ctx.restore();

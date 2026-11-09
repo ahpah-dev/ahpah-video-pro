@@ -37,7 +37,7 @@
     <!-- Left panel group: Project, Effects, Markers -->
     <section class="panel" id="leftPanel">
       <div class="ptabs">
-        <button class="ptab active" id="tabProject" data-ptab="project">Project: <b id="binProjName">Untitled Project</b></button>
+        <button class="ptab active" id="tabProject" data-ptab="project">Project</button>
         <button class="ptab" id="tabEffectsLib" data-ptab="effects">Effects</button>
         <button class="ptab" id="tabMarkers" data-ptab="markers">Markers</button>
         <button class="ptab" id="tabGraphics" data-ptab="graphics">Graphics</button>
@@ -54,7 +54,7 @@
           </button>
         </div>
         <div class="bin-list" id="binList"></div>
-        <div class="panel-foot"><span id="binCount">0 items</span><span class="muted">Double-click to open in Source</span></div>
+        <div class="panel-foot"><span><b id="binProjName">Untitled Project</b> · <span id="binCount">0 items</span></span><span class="muted">Double-click to open in Source</span></div>
       </div>
 
       <div class="pane hidden" id="paneEffects">
@@ -229,6 +229,7 @@
   <script src="js/meters.js"></script>
   <script src="js/project.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/layout.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

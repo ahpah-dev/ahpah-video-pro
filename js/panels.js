@@ -187,13 +187,15 @@
 
   function textSection(c) {
     const T = c.text;
-    const fonts = ['Arial', 'Helvetica', 'Georgia', 'Times New Roman', 'Courier New', 'Verdana', 'Impact', 'Trebuchet MS', 'Segoe UI'];
-    const fontOpts = fonts.map((f) => `<option${f === T.font ? ' selected' : ''}>${f}</option>`).join('');
+    const fonts = AVP.fontList();
+    if (T.font && fonts.indexOf(T.font) < 0) fonts.unshift(T.font);
+    const fontOpts = fonts.map((f) => `<option${f === T.font ? ' selected' : ''}>${esc(f)}</option>`).join('');
     const alignOpts = ['left', 'center', 'right'].map((a) => `<option${a === T.align ? ' selected' : ''}>${a}</option>`).join('');
     return (
       `<div class="fx-group">${sectionHead('Text')}` +
       `<textarea class="wide" rows="3" data-text="text">${esc(T.text)}</textarea>` +
-      `<div class="fx-kv"><span>Font</span><select data-text="font">${fontOpts}</select></div>` +
+      `<div class="fx-kv"><span>Font</span><span class="font-pick"><select data-text="font">${fontOpts}</select>` +
+      `<button class="btn tiny" data-font-import title="Add a .ttf, .otf or .woff font file to this project">Add font…</button></span></div>` +
       `<div class="fx-kv"><span>Size</span><input type="number" data-text="size" value="${T.size}" min="8" max="600" step="2"></div>` +
       `<div class="fx-kv"><span>Align</span><select data-text="align">${alignOpts}</select></div>` +
       `<div class="fx-kv"><span>Style</span><span><label class="df-check"><input type="checkbox" data-text="bold"${T.bold ? ' checked' : ''}> Bold</label> ` +
@@ -208,6 +210,34 @@
       `<div class="fx-kv"><span>Max width</span><input type="number" data-text="maxWidth" value="${T.maxWidth}" min="10" max="100" step="5">%</div>` +
       `</div>`
     );
+  }
+
+  // Asks for a font file and uses it for the title. The font is saved with the project.
+  function pickFontFile(clipId) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.ttf,.otf,.woff,.woff2';
+    input.addEventListener('change', () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      if (file.size > 15 * 1024 * 1024) return AVP.toast('Font files over 15 MB are too large for a project', 'warn');
+      const reader = new FileReader();
+      reader.onload = () => {
+        const name = file.name.replace(/\.(ttf|otf|woff2?)$/i, '');
+        AVP.addCustomFont(name, reader.result).then((ok) => {
+          if (!ok) return AVP.toast(`${file.name} could not be read as a font`, 'error');
+          const cur = AVP.findClip(clipId);
+          if (cur && cur.text) {
+            AVP.pushUndo();
+            cur.text.font = name;
+          }
+          AVP.toast(`Added font ${name}`);
+          AVP.refresh();
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+    input.click();
   }
 
   function bindControls(c) {
@@ -278,6 +308,9 @@
         AVP.refresh();
       });
     });
+
+    const fontBtn = controlsEl.querySelector('[data-font-import]');
+    if (fontBtn) fontBtn.addEventListener('click', () => pickFontFile(c.id));
 
     // Text fields (live update).
     controlsEl.querySelectorAll('[data-text]').forEach((el) => {

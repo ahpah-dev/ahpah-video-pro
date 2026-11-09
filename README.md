@@ -33,13 +33,16 @@ it, sell it or bundle it however you like.
   Clips with sound place linked video and audio clips.
 - **Effects** (Effect Controls or the Effects tab; drag onto a clip or double-click):
   brightness and contrast, saturation, hue rotate, black and white, sepia, invert, blur,
-  glow, mosaic, vignette, film grain, crop and flip.
+  glow, mosaic, vignette, film grain, crop, flip, tint, drop shadow, light leak, lens flare,
+  scan lines and letterbox.
 - **Motion**: position, scale, rotation and opacity, with keyframes (the stopwatch and
   diamond buttons). Keyframes also work on effect settings and volume.
-- **Transitions**: cross dissolve, dip to black and white, wipes, slide, zoom, and
-  constant-gain audio fades. Drag them onto a clip edge, or use the clip menu. Video
+- **Transitions**: cross dissolve, dip to black and white, wipes (left to right, right to left,
+  top to bottom, diagonal, box from the centre and iris), slides (left, right, top, bottom),
+  zoom, spin, and constant-gain audio fades. Drag them onto a clip edge, or use the clip menu. Video
   transitions crossfade the linked audio.
-- **Titles**: title clips with font, size, colour, bold / italic, outline, shadow,
+- **Titles**: title clips with a font picker that lists the fonts installed on this computer,
+  and an "Add font" button for a .ttf, .otf or .woff file (saved with the project). Size, colour, bold / italic, outline, shadow,
   background box, alignment, line height and width. Six presets are included.
 - **Speed**: change a clip's speed from 10% to 1600% (Ctrl+R).
 - **Playback**: play, pause, reverse, frame stepping and jumps to edit points, at a
@@ -48,7 +51,10 @@ it, sell it or bundle it however you like.
   the frame size, quality and range (whole sequence or work area). Export a single frame
   as PNG.
 - **Sequence settings**: frame size (HD, 4K, vertical, square) and frame rate.
-- **Workspaces**: Editing, Assembly, Effects, Color and Audio layouts (the other workspace tabs are placeholders).
+- **Workspaces**: Editing, Assembly, Effects, Color, Audio and Graphics layouts (the other workspace tabs are placeholders).
+- **Panel sizes**: drag the gaps between the panels to resize them, and drag the gap above the timeline
+  to make the timeline taller. Each workspace remembers its sizes. Tab strips scroll by wheel or drag.
+  The timeline pans with the middle mouse button or the hand tool, in any direction.
 - **Lumetri Color**: exposure, contrast, highlights, shadows, whites, blacks, white balance,
   three colour wheels (shadows, midtones, highlights), an RGB curves editor with per-channel
   curves, an HSL secondary, saturation, vibrance, faded film, sharpening and 3D LUTs (.cube).
@@ -140,7 +146,8 @@ This is an early, browser-based editor. Known limits:
 index.html           Application shell (panels, toolbar, dialogs)
 css/style.css        Dark editing theme
 js/state.js          Shared state, undo history, data version, helpers
-js/effects.js        Effect / transition / title definitions and timing maths (pure)
+js/effects.js        Effect / transition / font definitions and timing maths (pure)
+js/layout.js         Panel splitters and per-workspace sizes
 js/edits.js          Split, trim, carve, insert, overwrite, speed, transitions, copy / paste
 js/render.js         Frame compositor (direct draw, layers for post effects, cached index)
 js/monitor.js        Program monitor: playback engine, preview size, WebM / MP4 export
@@ -152,6 +159,7 @@ js/timeline.js       Timeline rendering and mouse editing
 js/project.js        Project files and autosave
 js/main.js           Actions, menu bar, keyboard shortcuts, startup
 tests/edits-test.js  Unit tests for the editing, effect and transition rules
+tests/effects-test.js  Unit tests for the new effects, transitions and fonts
 assets/logo.svg      Application logo
 ```
 

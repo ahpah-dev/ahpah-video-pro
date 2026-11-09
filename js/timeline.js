@@ -10,8 +10,8 @@
   const EPS = AVP.EPS;
 
   const HEAD_W = 150;
-  const RULER_H = 26;
-  const TRACK_H = { video: 54, audio: 44 };
+  const RULER_H = 30;
+  const TRACK_H = { video: 62, audio: 50 };
   const SNAP_PX = 8;
   const EDGE_PX = 7;
   const DRAG_MIME = 'application/x-avp-media';
@@ -431,6 +431,12 @@
   }
 
   function onDown(e) {
+    if (e.button === 1) {
+      // Middle button drags the timeline in any direction, whatever tool is active.
+      drag = { kind: 'pan', x0: e.clientX, y0: e.clientY, s0: dom.scroll.scrollLeft, t0: dom.scroll.scrollTop };
+      e.preventDefault();
+      return;
+    }
     if (e.button !== 0) return;
     if (e.target.closest('.tl-head')) return;
 
@@ -445,7 +451,7 @@
     }
 
     if (S.tool === 'hand') {
-      drag = { kind: 'pan', x0: e.clientX, s0: dom.scroll.scrollLeft };
+      drag = { kind: 'pan', x0: e.clientX, y0: e.clientY, s0: dom.scroll.scrollLeft, t0: dom.scroll.scrollTop };
       e.preventDefault();
       return;
     }
@@ -558,7 +564,10 @@
 
   function onMove(e) {
     if (!drag) return;
-    if (drag.kind === 'pan') dom.scroll.scrollLeft = drag.s0 - (e.clientX - drag.x0);
+    if (drag.kind === 'pan') {
+      dom.scroll.scrollLeft = drag.s0 - (e.clientX - drag.x0);
+      dom.scroll.scrollTop = drag.t0 - (e.clientY - drag.y0);
+    }
     else if (drag.kind === 'scrub') scrubTo(e.clientX);
     else if (drag.kind === 'marquee') updateMarquee(e);
     else if (drag.kind === 'trans') updateTransDrag(e);

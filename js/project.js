@@ -32,6 +32,7 @@
       workIn: S.workIn,
       workOut: S.workOut,
       media: S.media.map(mediaMeta),
+      fonts: AVP.customFonts,
       savedAt: new Date().toISOString(),
     };
   }
@@ -42,6 +43,7 @@
       throw new Error('Not an AhPah Video Pro project');
     }
     const old = S.media;
+    AVP.restoreCustomFonts(data.fonts);
     S.projectName = data.name || 'Untitled Project';
     S.fps = data.fps || 30;
     S.seqWidth = data.width || 1920;

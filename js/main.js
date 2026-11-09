@@ -815,6 +815,7 @@
     layout.classList.remove('ws-editing', 'ws-assembly', 'ws-effects', 'ws-color', 'ws-audio');
     if (id === 'editing') layout.classList.add('ws-editing');
     if (ws.layout) layout.classList.add(ws.layout);
+    AVP.layout.activate(id);
     document.querySelectorAll('.wtab').forEach((b) => b.classList.toggle('active', b.dataset.ws === id));
     if (ws.panel) AVP.panels.setPanel(ws.panel);
     if (ws.right) AVP.panels.setPanel(ws.right);
@@ -832,6 +833,7 @@
     AVP.timeline.init();
     AVP.monitor.init();
     AVP.panels.init();
+    AVP.layout.init();
     AVP.meters.init();
     document.querySelectorAll('.wtab').forEach((b) => b.addEventListener('click', () => setWorkspace(b.dataset.ws)));
 

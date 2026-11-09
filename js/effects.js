@@ -144,6 +144,58 @@
         { k: 'v', label: 'Vertical (1 = on)', min: 0, max: 1, def: 0 },
       ],
     },
+    tint: {
+      name: 'Tint',
+      cat: 'Color Correction',
+      params: [
+        { k: 'hue', label: 'Colour (hue)', min: 0, max: 360, def: 30, unit: '°' },
+        { k: 'amount', label: 'Amount', min: 0, max: 100, def: 0, unit: '%' },
+      ],
+    },
+    'drop-shadow': {
+      name: 'Drop Shadow',
+      cat: 'Stylize',
+      params: [
+        { k: 'opacity', label: 'Opacity', min: 0, max: 100, def: 0, unit: '%' },
+        { k: 'angle', label: 'Direction', min: 0, max: 360, def: 135, unit: '°' },
+        { k: 'distance', label: 'Distance', min: 0, max: 100, def: 12, unit: 'px' },
+        { k: 'softness', label: 'Softness', min: 0, max: 60, def: 10, unit: 'px' },
+      ],
+    },
+    'light-leak': {
+      name: 'Light Leak',
+      cat: 'Stylize',
+      params: [
+        { k: 'amount', label: 'Amount', min: 0, max: 100, def: 0, unit: '%' },
+        { k: 'hue', label: 'Colour (hue)', min: 0, max: 360, def: 25, unit: '°' },
+        { k: 'x', label: 'Position X', min: 0, max: 100, def: 0, unit: '%' },
+        { k: 'y', label: 'Position Y', min: 0, max: 100, def: 50, unit: '%' },
+        { k: 'size', label: 'Size', min: 10, max: 150, def: 70, unit: '%' },
+      ],
+    },
+    'lens-flare': {
+      name: 'Lens Flare',
+      cat: 'Stylize',
+      params: [
+        { k: 'amount', label: 'Brightness', min: 0, max: 100, def: 0, unit: '%' },
+        { k: 'x', label: 'Centre X', min: 0, max: 100, def: 75, unit: '%' },
+        { k: 'y', label: 'Centre Y', min: 0, max: 100, def: 25, unit: '%' },
+        { k: 'size', label: 'Size', min: 5, max: 100, def: 30, unit: '%' },
+      ],
+    },
+    'scan-lines': {
+      name: 'Scan Lines',
+      cat: 'Stylize',
+      params: [
+        { k: 'amount', label: 'Darkness', min: 0, max: 100, def: 0, unit: '%' },
+        { k: 'spacing', label: 'Spacing', min: 2, max: 20, def: 4, unit: 'px' },
+      ],
+    },
+    letterbox: {
+      name: 'Letterbox',
+      cat: 'Transform',
+      params: [{ k: 'size', label: 'Bar height', min: 0, max: 40, def: 0, unit: '%' }],
+    },
   };
 
   AVP.effectParamDef = function (type, k) {
@@ -172,6 +224,12 @@
     'slide-in-right': { name: 'Slide In From Right', cat: 'Motion', dur: 1, audio: false },
     'slide-in-left': { name: 'Slide In From Left', cat: 'Motion', dur: 1, audio: false },
     zoom: { name: 'Zoom', cat: 'Motion', dur: 1, audio: false },
+    'slide-in-bottom': { name: 'Slide In From Bottom', cat: 'Motion', dur: 1, audio: false },
+    'slide-in-top': { name: 'Slide In From Top', cat: 'Motion', dur: 1, audio: false },
+    spin: { name: 'Spin', cat: 'Motion', dur: 1, audio: false },
+    'wipe-diag': { name: 'Diagonal Wipe', cat: 'Wipe', dur: 1, audio: false },
+    'wipe-box': { name: 'Box Wipe (from centre)', cat: 'Wipe', dur: 1, audio: false },
+    iris: { name: 'Iris (circle)', cat: 'Wipe', dur: 1, audio: false },
     'audio-fade': { name: 'Constant Gain (Audio Fade)', cat: 'Audio', dur: 1, audio: true },
   };
 
@@ -192,6 +250,73 @@
     bgOpacity: 0,
     lineHeight: 1.2,
     maxWidth: 80, // % of frame width
+  };
+
+  /* ---------- fonts ---------- */
+
+  // Fonts offered for titles. Only the ones installed on this computer are listed, plus any font
+  // the project imported, so the list matches what the picture will show.
+  AVP.FONT_CANDIDATES = [
+    'Arial', 'Arial Black', 'Arial Narrow', 'Bahnschrift', 'Book Antiqua', 'Bookman Old Style', 'Calibri',
+    'Cambria', 'Candara', 'Century Gothic', 'Comic Sans MS', 'Consolas', 'Constantia', 'Corbel', 'Courier New',
+    'Franklin Gothic Medium', 'Garamond', 'Georgia', 'Gill Sans MT', 'Impact', 'Lucida Console',
+    'Lucida Sans Unicode', 'Palatino Linotype', 'Rockwell', 'Segoe UI', 'Segoe UI Black', 'Segoe UI Light',
+    'Segoe UI Semibold', 'Segoe Print', 'Segoe Script', 'Tahoma', 'Times New Roman', 'Trebuchet MS', 'Verdana',
+    'Brush Script MT', 'Monotype Corsiva', 'Cooper Black', 'Gabriola', 'Ink Free', 'Papyrus', 'Bodoni MT',
+    'Eras ITC', 'Agency FB', 'Stencil', 'Harlow Solid Italic', 'Helvetica', 'Helvetica Neue', 'Avenir',
+    'Avenir Next', 'Futura', 'Didot', 'Baskerville', 'Gill Sans', 'Optima', 'Menlo', 'Marker Felt', 'Noteworthy',
+    'Chalkboard', 'American Typewriter', 'Hoefler Text', 'Copperplate', 'Apple Chancery',
+  ];
+
+  // Fonts the project imported from files: { name, data } where data is a data URL. Saved with the project.
+  AVP.customFonts = [];
+
+  const fontCache = {};
+  // A font is installed when its width differs from the generic fallbacks for the same text.
+  AVP.fontInstalled = function (name) {
+    if (fontCache[name] !== undefined) return fontCache[name];
+    if (typeof document === 'undefined') return false;
+    const g = document.createElement('canvas').getContext('2d');
+    const sample = 'mmmmmmmmmmlliWWW@@0123';
+    const width = (family) => {
+      g.font = `72px ${family}`;
+      return g.measureText(sample).width;
+    };
+    const missing = width(`"${name}", monospace`) === width('monospace') && width(`"${name}", serif`) === width('serif');
+    fontCache[name] = !missing;
+    return !missing;
+  };
+
+  AVP.fontList = function () {
+    const names = new Set(AVP.FONT_CANDIDATES.filter((n) => AVP.fontInstalled(n)));
+    AVP.customFonts.forEach((f) => names.add(f.name));
+    return [...names].sort((a, b) => a.localeCompare(b));
+  };
+
+  function loadFontFace(name, dataUrl) {
+    if (typeof FontFace === 'undefined' || typeof document === 'undefined') return Promise.resolve(false);
+    const face = new FontFace(name, `url("${dataUrl}")`);
+    return face
+      .load()
+      .then((loaded) => {
+        document.fonts.add(loaded);
+        if (AVP.refresh) AVP.refresh();
+        return true;
+      })
+      .catch(() => false);
+  }
+
+  // Imports a font file (.ttf, .otf, .woff, .woff2) under its file name.
+  AVP.addCustomFont = function (name, dataUrl) {
+    AVP.customFonts = AVP.customFonts.filter((f) => f.name !== name);
+    AVP.customFonts.push({ name, data: dataUrl });
+    return loadFontFace(name, dataUrl);
+  };
+
+  // Restores the fonts saved with a project.
+  AVP.restoreCustomFonts = function (list) {
+    AVP.customFonts = (list || []).filter((f) => f && f.name && f.data);
+    return Promise.all(AVP.customFonts.map((f) => loadFontFace(f.name, f.data)));
   };
 
   AVP.TITLE_PRESETS = [
@@ -420,6 +545,21 @@
         v.scale *= 0.5 + 0.5 * p;
         v.alpha *= p;
         break;
+      case 'slide-in-bottom':
+        v.dy += 1 - p;
+        break;
+      case 'slide-in-top':
+        v.dy -= 1 - p;
+        break;
+      case 'spin':
+        v.alpha *= p;
+        v.rot += (p - 1) * 180;
+        break;
+      case 'wipe-diag':
+      case 'wipe-box':
+      case 'iris':
+        v.mask = { type: role.type, p };
+        break;
       default:
         break; // audio-fade and unknown types leave the picture alone
     }
@@ -455,6 +595,21 @@
         v.scale *= 1 - 0.2 * p;
         v.alpha *= 1 - p;
         break;
+      case 'slide-in-bottom':
+        v.dy -= p;
+        break;
+      case 'slide-in-top':
+        v.dy += p;
+        break;
+      case 'spin':
+        v.alpha *= 1 - p;
+        v.rot += p * 180;
+        break;
+      case 'wipe-diag':
+      case 'wipe-box':
+      case 'iris':
+        if (!role.centered) v.alpha *= 1 - p;
+        break;
       default:
         break;
     }
@@ -466,7 +621,7 @@
    * and optional full-frame colour overlays drawn before / after the clip.
    */
   AVP.visualAt = function (R, t) {
-    const v = { alpha: 1, dx: 0, dy: 0, scale: 1, clip: null, before: null, after: null };
+    const v = { alpha: 1, dx: 0, dy: 0, scale: 1, rot: 0, clip: null, mask: null, before: null, after: null };
     if (R.in && t >= R.in.a - EPS && t < R.in.b) {
       applyIn(v, R.in, clamp01((t - R.in.a) / (R.in.b - R.in.a)));
     }
