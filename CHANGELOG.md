@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.19.0
+
+### Text animations
+- New Animation section in the Text controls of a title, with an Effect list, Length, Delay and
+  Per letter (time between letters). Changes show on the Program monitor straight away.
+- Effects: Typewriter (letters appear in order, with a blinking cursor that stays for a second after
+  the text is done), Letter pop (overshoot), Word pop, Letter fade, Letter rise, Letter drop (bounce),
+  Letter spin, Glitch in, Wave (keeps moving), and Wipe reveal (the whole text uncovered from the left).
+- Preview animation plays the clip from its start.
+- Titles without an animation draw exactly as before. Older titles get the default (None).
+
 ## 1.18.0
 
 ### Timeline previews

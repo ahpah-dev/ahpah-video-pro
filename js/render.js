@@ -93,6 +93,77 @@
 
   /* ---------- titles ---------- */
 
+  // Draws title text one unit at a time (letters or words), each with its own animation transform.
+  // The units are laid out where the whole line would put them, so the finished text matches the static one.
+  function drawAnimatedUnits(L, T, lines, g) {
+    const { size, lh, blockH, blockW, align, localT, unit } = g;
+    const byWord = T.anim === 'word-pop';
+    const o = {
+      dur: Math.max(0.05, +T.animDur || 0.6),
+      delay: Math.max(0, +T.animDelay || 0),
+      stagger: Math.max(0, +T.animStagger || 0),
+      size,
+    };
+    const units = [];
+    let k = 0;
+    lines.forEach((ln, li) => {
+      const y = -blockH / 2 + lh * (li + 0.5);
+      const lw = L.measureText(ln).width;
+      const x0 = align === 'left' ? -blockW / 2 : align === 'right' ? blockW / 2 - lw : -lw / 2;
+      const tokens = byWord ? ln.match(/\S+|\s+/g) || [] : Array.from(ln);
+      let idx = 0;
+      tokens.forEach((tok) => {
+        const space = /^\s+$/.test(tok);
+        units.push({ text: tok, x: x0 + L.measureText(ln.slice(0, idx)).width, y, w: L.measureText(tok).width, k, space });
+        if (!space) k += 1;
+        idx += tok.length;
+      });
+    });
+    const total = k;
+    const typing = T.anim === 'typewriter';
+    let last = null;
+    units.forEach((u) => {
+      if (u.space) return;
+      if (typing && localT >= o.delay + u.k * o.stagger) last = u;
+      const st = AVP.textUnitState(T.anim, localT, u.k, o);
+      if (st.alpha <= 0.001) return;
+      L.save();
+      L.globalAlpha = L.globalAlpha * clamp01(st.alpha);
+      L.translate(u.x + u.w / 2 + st.dx, u.y + st.dy);
+      L.rotate(st.rot);
+      L.scale(st.s, st.s);
+      L.textAlign = 'center';
+      if (T.shadow) {
+        L.shadowColor = 'rgba(0,0,0,0.6)';
+        L.shadowBlur = size * 0.12;
+        L.shadowOffsetY = size * 0.05;
+      }
+      if (T.strokeWidth > 0) {
+        L.lineWidth = T.strokeWidth * unit * 2;
+        L.strokeStyle = T.stroke;
+        L.lineJoin = 'round';
+        L.strokeText(u.text, 0, 0);
+      }
+      L.fillStyle = T.color;
+      L.fillText(u.text, 0, 0);
+      L.restore();
+    });
+    // The typing cursor sits after the last letter typed, and blinks for a second after the text is done.
+    if (typing) {
+      const first = units.find((u) => !u.space);
+      const typeEnd = o.delay + total * o.stagger;
+      if (first && localT < typeEnd + 1 && Math.floor(localT * 2) % 2 === 0) {
+        const at = last || first;
+        const cx = last ? last.x + last.w : first.x;
+        L.save();
+        L.textAlign = 'left';
+        L.fillStyle = T.color;
+        L.fillText('|', cx + size * 0.02, at.y);
+        L.restore();
+      }
+    }
+  }
+
   function drawTitle(L, c, t, cx, cy, sc, rot, W, H) {
     const T = c.text || AVP.TEXT_DEFAULTS;
     const unit = H / 1080;
@@ -138,6 +209,23 @@
 
     const align = T.align === 'left' || T.align === 'right' ? T.align : 'center';
     L.textAlign = align;
+    const anim = T.anim || 'none';
+    const localT = t - c.start;
+    if (anim === 'wipe-reveal') {
+      // The whole block is uncovered from the left, so the text wipes on in one piece.
+      const p = AVP.ease.out(clamp01((localT - (+T.animDelay || 0)) / Math.max(0.05, +T.animDur || 0.6)));
+      if (p <= 0) {
+        L.restore();
+        return;
+      }
+      L.beginPath();
+      L.rect(-blockW / 2 - size, -blockH / 2 - size, (blockW + size * 2) * p, blockH + size * 2);
+      L.clip();
+    } else if (anim !== 'none') {
+      drawAnimatedUnits(L, T, lines, { size, lh, blockH, blockW, align, localT, unit });
+      L.restore();
+      return;
+    }
     lines.forEach((ln, i) => {
       const y = -blockH / 2 + lh * (i + 0.5);
       const x = align === 'left' ? -blockW / 2 : align === 'right' ? blockW / 2 : 0;

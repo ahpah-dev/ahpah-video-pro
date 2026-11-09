@@ -84,6 +84,9 @@ Dragging a transition onto a cut shows where it will land:
 - **Titles**: title clips with a font picker that lists the fonts installed on this computer,
   and an "Add font" button for a .ttf, .otf or .woff file (saved with the project). Size, colour, bold / italic, outline, shadow,
   background box, alignment, line height and width. Six presets are included.
+- **Text animations**: typewriter (with cursor), letter pop, word pop, letter fade, letter rise, letter drop
+  (bounce), letter spin, glitch in, wave (keeps moving) and a whole-text wipe. Set the effect, the length,
+  a delay and the time between letters under Animation in the Text section, then press Preview animation.
 - **Speed**: change a clip's speed from 10% to 1600% (Ctrl+R).
 - **Playback**: play, pause, reverse, frame stepping and jumps to edit points, at a
   choice of preview resolution (full, half or quarter). Drawing is paced to the display.

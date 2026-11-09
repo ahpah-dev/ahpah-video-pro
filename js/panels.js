@@ -320,6 +320,7 @@
     const fonts = AVP.fontList();
     if (T.font && fonts.indexOf(T.font) < 0) fonts.unshift(T.font);
     const fontOpts = fonts.map((f) => `<option${f === T.font ? ' selected' : ''}>${esc(f)}</option>`).join('');
+    const animOpts = AVP.TEXT_ANIMATIONS.map((a) => `<option value="${a.v}"${a.v === (T.anim || 'none') ? ' selected' : ''}>${esc(a.label)}</option>`).join('');
     const alignOpts = ['left', 'center', 'right'].map((a) => `<option${a === T.align ? ' selected' : ''}>${a}</option>`).join('');
     return (
       `<div class="fx-group">${sectionHead('Text')}` +
@@ -338,6 +339,13 @@
       `<input type="number" data-text="bgOpacity" value="${T.bgOpacity}" min="0" max="100" step="5" style="width:56px">%</span></div>` +
       `<div class="fx-kv"><span>Line height</span><input type="number" data-text="lineHeight" value="${T.lineHeight}" min="0.6" max="3" step="0.1"></div>` +
       `<div class="fx-kv"><span>Max width</span><input type="number" data-text="maxWidth" value="${T.maxWidth}" min="10" max="100" step="5">%</div>` +
+      `</div>` +
+      `<div class="fx-group">${sectionHead('Animation')}` +
+      `<div class="fx-kv"><span>Effect</span><select data-text="anim">${animOpts}</select></div>` +
+      `<div class="fx-kv"><span>Length (s)</span><input type="number" data-text="animDur" value="${T.animDur}" min="0.05" max="10" step="0.05"></div>` +
+      `<div class="fx-kv"><span>Delay (s)</span><input type="number" data-text="animDelay" value="${T.animDelay}" min="0" max="30" step="0.1"></div>` +
+      `<div class="fx-kv"><span>Per letter (s)</span><input type="number" data-text="animStagger" value="${T.animStagger}" min="0" max="2" step="0.01"></div>` +
+      `<div class="fx-kv"><span></span><button class="btn small" data-anim-preview title="Play the clip from its start to see the animation">Preview animation</button></div>` +
       `</div>`
     );
   }
@@ -481,6 +489,18 @@
       });
     });
 
+    const animPrev = controlsEl.querySelector('[data-anim-preview]');
+    if (animPrev) {
+      animPrev.addEventListener('click', () => {
+        const cur = AVP.findClip(c.id);
+        if (!cur) return;
+        AVP.monitor.goTo(cur.start);
+        AVP.monitor.play(1);
+        setTimeout(() => {
+          if (S.playing) AVP.monitor.stop();
+        }, Math.ceil(cur.duration * 1000));
+      });
+    }
     const fontBtn = controlsEl.querySelector('[data-font-import]');
     if (fontBtn) fontBtn.addEventListener('click', () => pickFontFile(c.id));
 

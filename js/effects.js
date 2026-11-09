@@ -257,6 +257,10 @@
     bgOpacity: 0,
     lineHeight: 1.2,
     maxWidth: 80, // % of frame width
+    anim: 'none', // text animation, see AVP.TEXT_ANIMATIONS
+    animDur: 0.6, // seconds for one letter (or word, line) to finish its animation
+    animDelay: 0, // seconds from the clip's start before the animation begins
+    animStagger: 0.04, // seconds between one letter and the next
   };
 
   /* ---------- fonts ---------- */
@@ -346,6 +350,106 @@
       props: { y: 38 },
     },
   ];
+
+  /* ---------- text animations ---------- */
+
+  // Animations a title can play. The clip's text is split into letters (or words), and each one moves
+  // on its own schedule: it starts after the delay plus its place in the sequence times the stagger.
+  AVP.TEXT_ANIMATIONS = [
+    { v: 'none', label: 'None' },
+    { v: 'typewriter', label: 'Typewriter (letters in order, with cursor)' },
+    { v: 'letter-pop', label: 'Letter pop (overshoot)' },
+    { v: 'word-pop', label: 'Word pop' },
+    { v: 'letter-fade', label: 'Letter fade' },
+    { v: 'letter-rise', label: 'Letter rise' },
+    { v: 'letter-drop', label: 'Letter drop (bounce)' },
+    { v: 'letter-spin', label: 'Letter spin' },
+    { v: 'glitch', label: 'Glitch in' },
+    { v: 'wave', label: 'Wave (keeps moving)' },
+    { v: 'wipe-reveal', label: 'Wipe reveal (whole text)' },
+  ];
+
+  // Easing curves. out: slows down at the end. back: overshoots and settles. bounce: drops and bounces.
+  AVP.ease = {
+    out: (p) => 1 - Math.pow(1 - p, 3),
+    back: (p) => {
+      const c1 = 1.70158;
+      const c3 = c1 + 1;
+      return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2);
+    },
+    bounce: (p) => {
+      const n = 7.5625;
+      const d = 2.75;
+      if (p < 1 / d) return n * p * p;
+      if (p < 2 / d) {
+        p -= 1.5 / d;
+        return n * p * p + 0.75;
+      }
+      if (p < 2.5 / d) {
+        p -= 2.25 / d;
+        return n * p * p + 0.9375;
+      }
+      p -= 2.625 / d;
+      return n * p * p + 0.984375;
+    },
+  };
+
+  // Deterministic pseudo-random value in [0, 1), so glitch frames are the same each time a moment is drawn.
+  const noise01 = (a, b) => {
+    const v = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
+    return v - Math.floor(v);
+  };
+
+  /*
+   * The transform of one unit (letter or word) at local time localT. k is the unit's place among the
+   * visible units, o holds { dur, delay, stagger, size } in the same units as localT. Returns
+   * { alpha, s (scale), dx, dy (offsets in px), rot (radians) }.
+   */
+  AVP.textUnitState = function (type, localT, k, o) {
+    const start = o.delay + k * o.stagger;
+    const p = clamp01((localT - start) / o.dur);
+    const st = { alpha: 1, s: 1, dx: 0, dy: 0, rot: 0 };
+    switch (type) {
+      case 'typewriter':
+        st.alpha = localT >= start ? 1 : 0;
+        break;
+      case 'letter-pop':
+      case 'word-pop':
+        st.s = Math.max(0, AVP.ease.back(p));
+        st.alpha = clamp01(p * 3);
+        break;
+      case 'letter-fade':
+        st.alpha = p;
+        break;
+      case 'letter-rise':
+        st.dy = (1 - AVP.ease.out(p)) * o.size * 0.6;
+        st.alpha = p;
+        break;
+      case 'letter-drop':
+        st.dy = -(1 - AVP.ease.bounce(p)) * o.size * 1.1;
+        st.alpha = clamp01(p * 4);
+        break;
+      case 'letter-spin':
+        st.rot = -(1 - AVP.ease.out(p)) * Math.PI * 2;
+        st.s = AVP.ease.out(p);
+        st.alpha = p;
+        break;
+      case 'glitch':
+        if (localT < start) st.alpha = 0;
+        else if (p < 1) {
+          const f = Math.floor(localT * 24);
+          st.dx = (noise01(k, f) - 0.5) * o.size * 0.5 * (1 - p);
+          st.alpha = noise01(k + 7, f) < p * 0.6 + 0.3 ? 1 : 0.15;
+        }
+        break;
+      case 'wave':
+        if (localT >= start) st.dy = Math.sin((2 * Math.PI * (localT - start)) / (o.dur * 2) - k * 0.5) * o.size * 0.12;
+        break;
+      default:
+        break; // none, and the whole-text wipe, which render.js handles
+    }
+    return st;
+  };
 
   /* ---------- shapes (Essential Graphics) ---------- */
 

@@ -190,6 +190,61 @@ test('a drop in the middle of a clip with no neighbour still lands on its nearer
   assert.ok(Math.abs(p.span[0] - 2) < 1e-9);
 });
 
+test('easing curves start at 0 and end at 1, and the back curve overshoots', () => {
+  assert.ok(Math.abs(AVP.ease.out(0)) < 1e-9 && Math.abs(AVP.ease.out(1) - 1) < 1e-9);
+  assert.ok(Math.abs(AVP.ease.back(0)) < 1e-9 && Math.abs(AVP.ease.back(1) - 1) < 1e-9);
+  assert.ok(AVP.ease.back(0.6) > 1, 'overshoots past 1 before settling');
+  assert.ok(Math.abs(AVP.ease.bounce(0)) < 1e-9 && Math.abs(AVP.ease.bounce(1) - 1) < 1e-6);
+});
+
+const O = { dur: 0.5, delay: 0, stagger: 0.1, size: 100 };
+
+test('typewriter shows letters in order, one stagger apart', () => {
+  assert.strictEqual(AVP.textUnitState('typewriter', 0.15, 2, O).alpha, 0, 'letter 2 is not typed yet');
+  assert.strictEqual(AVP.textUnitState('typewriter', 0.25, 2, O).alpha, 1, 'and is typed by 0.25 s');
+  assert.strictEqual(AVP.textUnitState('typewriter', 0.05, 0, O).alpha, 1, 'the first letter starts at once');
+});
+
+test('letter pop starts invisible and small, and settles at full size', () => {
+  const start = AVP.textUnitState('letter-pop', 0, 0, O);
+  assert.ok(Math.abs(start.s) < 1e-9 && start.alpha === 0);
+  const end = AVP.textUnitState('letter-pop', 0.5, 0, O);
+  assert.ok(Math.abs(end.s - 1) < 1e-9 && end.alpha === 1);
+});
+
+test('letter drop falls from above and bounces to rest', () => {
+  assert.strictEqual(AVP.textUnitState('letter-drop', 0, 0, O).alpha, 0, 'hidden before it falls');
+  const mid = AVP.textUnitState('letter-drop', 0.2, 0, O);
+  assert.ok(mid.dy < 0, 'above its place while falling');
+  const rest = AVP.textUnitState('letter-drop', 0.5, 0, O);
+  assert.ok(Math.abs(rest.dy) < 1e-6 && rest.alpha === 1);
+});
+
+test('glitch is hidden before its letter and settles cleanly at the end', () => {
+  assert.strictEqual(AVP.textUnitState('glitch', 0.02, 3, O).alpha, 0, 'not yet');
+  const done = AVP.textUnitState('glitch', 2, 3, O);
+  assert.ok(done.alpha === 1 && done.dx === 0 && done.dy === 0, 'settled');
+});
+
+test('wave moves letters up and down by at most 12% of the size, and keeps them visible', () => {
+  let worst = 0;
+  for (let t = 0; t < 3; t += 0.05) {
+    const st = AVP.textUnitState('wave', t, 4, O);
+    worst = Math.max(worst, Math.abs(st.dy));
+    assert.strictEqual(st.alpha, 1);
+  }
+  assert.ok(worst <= O.size * 0.12 + 1e-9 && worst > 1, 'bounded and visible');
+});
+
+test('titles have no animation by default, and the list of animations starts with none', () => {
+  assert.strictEqual(AVP.TEXT_DEFAULTS.anim, 'none');
+  assert.ok(AVP.TEXT_DEFAULTS.animDur > 0 && AVP.TEXT_DEFAULTS.animStagger >= 0);
+  assert.strictEqual(AVP.TEXT_ANIMATIONS[0].v, 'none');
+  ['typewriter', 'letter-pop', 'letter-drop', 'glitch', 'wave'].forEach((v) =>
+    assert.ok(AVP.TEXT_ANIMATIONS.some((a) => a.v === v), v + ' is offered')
+  );
+});
+
 // Tests run one after another, so the async font tests cannot see each other's changes.
 (async () => {
   let failed = 0;
