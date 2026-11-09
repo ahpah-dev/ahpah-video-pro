@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.9.4
+
+### Scrubbing
+- The program picture follows the playhead in real time. Dragging the playhead on the ruler, or
+  stepping with the arrow keys, redraws the video at each move instead of only after the mouse is
+  released.
+- While paused, a new seek replaces one still in progress, so the picture keeps up with the pointer.
+  Seeks are limited to about 12 a second.
+
 ## 1.9.3
 
 ### Graphics panel

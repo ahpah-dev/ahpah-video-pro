@@ -330,8 +330,14 @@
           el.currentTime = target;
         }
       } else {
+        // Paused (scrubbing or stepping): seek to the playhead. A newer seek replaces one still in
+        // progress, so the picture follows the pointer; seeks are limited to about 12 a second.
         if (!el.paused) el.pause();
-        if (!el.seeking && Math.abs(el.currentTime - target) > 0.02) el.currentTime = target;
+        const now = performance.now();
+        if (Math.abs(el.currentTime - target) > 0.02 && (!el.seeking || now - (n.seekAt || 0) > 80)) {
+          el.currentTime = target;
+          n.seekAt = now;
+        }
       }
     }
 
@@ -343,6 +349,7 @@
   // Redraws are event-driven: while playing, every tick; otherwise only after a change
   // (a state edit, a media load or a seek) so an idle editor costs almost nothing.
   let dirty = 0;
+  let lastDrawnT = NaN; // playhead time at the last check, so any move of the playhead is drawn
   function markDirty(ticks) {
     dirty = Math.max(dirty, ticks || 3);
   }
@@ -451,6 +458,11 @@
     }
 
     sync();
+    // Any change of the playhead (scrubbing, stepping, clicking the ruler) redraws the picture at once.
+    if (S.playhead !== lastDrawnT) {
+      lastDrawnT = S.playhead;
+      markDirty(2);
+    }
     drawIfNeeded(performance.now());
     AVP.timeline.updatePlayhead();
     updateTimecodes();
