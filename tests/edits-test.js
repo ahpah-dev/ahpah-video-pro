@@ -60,6 +60,34 @@ const test = (name, fn) => tests.push({ name, fn });
 
 /* ---------- edit rules ---------- */
 
+test('partners are clips with the same link that overlap in time', () => {
+  reset([clip('V1', 0, 4, 'L', 0), clip('A1', 0, 4, 'L', 0), clip('A1', 6, 2, 'L', 0), clip('A2', 0, 4, null, 0)]);
+  const v = S.clips[0];
+  assert.strictEqual(AVP.partners(v).length, 1, 'only the overlapping audio clip is a partner');
+  assert.strictEqual(AVP.partners(v)[0].track, 'A1');
+  assert.strictEqual(AVP.partners(S.clips[3]).length, 0, 'an unlinked clip has no partners');
+});
+
+test('a trimmed linked clip keeps its partner (the link survives a trim)', () => {
+  reset([clip('V1', 0, 4, 'L', 0), clip('A1', 0, 4, 'L', 0)]);
+  const v = S.clips[0];
+  v.duration = 2.5; // trimmed on its own, as the timeline does when only the video is dragged
+  assert.strictEqual(AVP.partners(v).length, 1, 'still linked to the audio');
+  assert.strictEqual(AVP.partners(S.clips[1]).length, 1, 'and the audio is still linked to the video');
+});
+
+test('selecting a clip selects its partner only while linked selection is on', () => {
+  reset([clip('V1', 0, 4, 'L', 0), clip('A1', 0, 4, 'L', 0)]);
+  const v = S.clips[0];
+  S.linkedSelection = true;
+  AVP.select([v.id], false);
+  assert.strictEqual(S.selection.length, 2, 'linked selection takes the audio too');
+  S.linkedSelection = false;
+  AVP.select([v.id], false);
+  assert.strictEqual(S.selection.length, 1, 'with linked selection off only the clip is selected');
+  S.linkedSelection = true;
+});
+
 test('splitClip cuts linked partners at the same time', () => {
   reset([clip('V1', 0, 4, 'L', 0), clip('A1', 0, 4, 'L', 0)]);
   E.splitClip(S.clips[0], 1);

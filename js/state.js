@@ -8,7 +8,7 @@
   const AVP = (window.AVP = window.AVP || {});
 
   AVP.APP_NAME = 'AhPah Video Pro';
-  AVP.VERSION = '1.8.0';
+  AVP.VERSION = '1.8.1';
   AVP.EPS = 1e-4;
 
   /* ---------- tracks ---------- */
@@ -35,6 +35,7 @@
     workIn: null,
     workOut: null,
     selection: [],
+    linkedSelection: true, // clicking a clip also selects its linked partner (video + audio)
     clipboard: null,
     playhead: 0,
     tool: 'select', // select | razor | hand
@@ -152,13 +153,18 @@
 
   /* ---------- selection ---------- */
 
+  // Linked partners are selected with a clip only while linked selection is on.
+  AVP.selectionPartners = function (c) {
+    return S.linkedSelection !== false ? AVP.partners(c) : [];
+  };
+
   AVP.select = function (ids, additive) {
     const set = new Set(additive ? S.selection : []);
     for (const id of ids) {
       const c = AVP.findClip(id);
       if (!c) continue;
       set.add(id);
-      AVP.partners(c).forEach((p) => set.add(p.id));
+      AVP.selectionPartners(c).forEach((p) => set.add(p.id));
     }
     S.selection = [...set];
   };
@@ -167,7 +173,7 @@
     const c = AVP.findClip(id);
     if (!c) return;
     if (S.selection.includes(id)) {
-      const drop = new Set([id, ...AVP.partners(c).map((p) => p.id)]);
+      const drop = new Set([id, ...AVP.selectionPartners(c).map((p) => p.id)]);
       S.selection = S.selection.filter((x) => !drop.has(x));
     } else {
       AVP.select([id], true);

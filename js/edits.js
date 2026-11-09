@@ -1,8 +1,9 @@
 /*
  * AhPah Video Pro - timeline editing operations.
  * Clips that come from the same file (video + its audio) share a `linkId`.
- * Two clips are "partners" when they share a linkId and have the same start and duration.
- * Partners are always cut, moved and trimmed together.
+ * Two clips are "partners" when they share a linkId and overlap in time. Partners are cut and
+ * moved together. Trimming moves only the clip you drag (see startClipDrag), so a trimmed video
+ * keeps its link to the audio without changing the audio.
  */
 (function () {
   'use strict';
@@ -13,12 +14,9 @@
 
   AVP.partners = function (c) {
     if (!c || !c.linkId) return [];
+    const end = c.start + c.duration;
     return S.clips.filter(
-      (o) =>
-        o.id !== c.id &&
-        o.linkId === c.linkId &&
-        Math.abs(o.start - c.start) < EPS &&
-        Math.abs(o.duration - c.duration) < EPS
+      (o) => o.id !== c.id && o.linkId === c.linkId && o.start < end - EPS && o.start + o.duration > c.start + EPS
     );
   };
 

@@ -33,6 +33,7 @@
 
   function setTool(tool) {
     S.tool = tool;
+    if (tool !== 'razor') hideRazorLine();
     dom.scroll.classList.toggle('tool-razor', tool === 'razor');
     dom.scroll.classList.toggle('tool-hand', tool === 'hand');
     dom.scroll.classList.toggle('tool-zoom', tool === 'zoom');
@@ -44,6 +45,8 @@
     document.querySelectorAll('[data-tool]').forEach((b) => b.classList.toggle('active', b.dataset.tool === S.tool));
     const snap = $('#tlSnap');
     if (snap) snap.classList.toggle('active', S.snap);
+    const linked = $('#tlLinked');
+    if (linked) linked.classList.toggle('active', S.linkedSelection !== false);
     const zoom = $('#tlZoom');
     if (zoom && +zoom.value !== S.zoom) zoom.value = S.zoom;
     const tc = $('#tlTC');
@@ -103,7 +106,9 @@
 
   function clipHtml(c, list) {
     const m = AVP.findMedia(c.mediaId);
-    const kind = c.kind === 'shape' ? 'shape' : c.kind === 'title' ? 'title' : m ? m.type : 'video';
+    // Clips on an audio track are drawn as audio, even when they come from a video file (its sound).
+    const kind =
+      c.kind === 'shape' ? 'shape' : c.kind === 'title' ? 'title' : S.tracks[c.track] && S.tracks[c.track].kind === 'audio' ? 'audio' : m ? m.type : 'video';
     const cls = [
       'clip',
       kind,
@@ -201,7 +206,9 @@
     html += '<div class="marker-lines">' + S.markers.map((m) => `<div class="marker-line" style="left:${HEAD_W + m.t * S.zoom}px"></div>`).join('') + '</div>';
     html += '<div class="tl-marquee hidden"></div>';
     html += '<div class="tl-playhead"></div>';
+    html += '<div class="razor-cut hidden"><span></span></div>';
     dom.content.innerHTML = html;
+    dom.razor = dom.content.querySelector('.razor-cut');
     dom.content.style.width = HEAD_W + laneW + 'px';
     dom.marquee = dom.content.querySelector('.tl-marquee');
     dom.playhead = dom.content.querySelector('.tl-playhead');
@@ -302,7 +309,17 @@
 
   function startClipDrag(kind, c, e) {
     if (S.tracks[c.track].locked) return;
-    const ids = [c.id].concat(AVP.partners(c).map((p) => p.id));
+    const partnerIds = new Set(AVP.partners(c).map((p) => p.id));
+    // Moving takes the linked partners along. Trimming changes only the clip you grab, plus any other
+    // clips you selected yourself (partners that linked selection added are left alone).
+    const ids = [c.id];
+    if (kind === 'move') partnerIds.forEach((id) => ids.push(id));
+    else {
+      S.selection.forEach((id) => {
+        const o = AVP.findClip(id);
+        if (o && id !== c.id && !partnerIds.has(id) && !S.tracks[o.track].locked) ids.push(id);
+      });
+    }
     const orig = {};
     ids.forEach((id) => (orig[id] = Object.assign({}, AVP.findClip(id))));
     drag = {
@@ -508,8 +525,10 @@
       const rect = el.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const kind = x < EDGE_PX ? 'trim-in' : rect.width - x < EDGE_PX ? 'trim-out' : 'move';
-      if (!S.selection.includes(c.id)) AVP.select([c.id], false);
+      const wasSelected = S.selection.includes(c.id);
+      if (!wasSelected) AVP.select([c.id], false);
       startClipDrag(kind, c, e);
+      if (drag) drag.soloOnClick = wasSelected && S.selection.length > 1;
       e.preventDefault();
       return;
     }
@@ -545,10 +564,10 @@
     dom.marquee.style.height = r.h + 'px';
   }
 
-  function finishMarquee(e) {
+  function finishMarquee(e, moved) {
     const mr = dom.marquee.getBoundingClientRect();
     dom.marquee.classList.add('hidden');
-    if (!drag.moved) {
+    if (!moved) {
       AVP.select([], false);
       AVP.monitor.stop();
       S.playhead = timeAtClientX(e.clientX);
@@ -579,12 +598,14 @@
     const d = drag;
     drag = null;
     if (d.kind === 'marquee') {
-      finishMarquee(e);
+      finishMarquee(e, d.moved);
       render();
       AVP.refreshPanels();
       return;
     }
     if (d.pushed && !d.moved) AVP.popUndo();
+    // A plain click on a clip from a multi-selection selects just that clip.
+    if (d.soloOnClick && !d.moved) AVP.select([d.leadId], false);
     if ((d.kind === 'move' || d.kind === 'trim-in' || d.kind === 'trim-out') && d.moved) {
       // Dropped clips overwrite whatever they now cover on their tracks.
       const keep = new Set(d.ids);
@@ -596,7 +617,22 @@
     if (d.kind !== 'pan') AVP.refresh();
   }
 
+  // Razor tool: a red line shows exactly where the clip will be cut, snapped to the frame.
+  function showRazorLine(e) {
+    if (!dom.razor || drag) return;
+    if (e.target.closest('.tl-head') || e.target.closest('.tools')) return hideRazorLine();
+    const t = timeAtClientX(e.clientX);
+    dom.razor.style.left = HEAD_W + t * S.zoom + 'px';
+    dom.razor.firstChild.textContent = AVP.fmtTC(t);
+    dom.razor.classList.remove('hidden');
+  }
+
+  function hideRazorLine() {
+    if (dom.razor) dom.razor.classList.add('hidden');
+  }
+
   function onHover(e) {
+    if (S.tool === 'razor') return showRazorLine(e);
     if (drag || S.tool !== 'select') return;
     const el = e.target.closest('.clip');
     if (!el) return;
@@ -913,6 +949,7 @@
 
     dom.scroll.addEventListener('pointerdown', onDown);
     dom.scroll.addEventListener('pointermove', onHover);
+    dom.scroll.addEventListener('pointerleave', hideRazorLine);
     dom.scroll.addEventListener('click', onClick);
     dom.scroll.addEventListener('contextmenu', onContextMenu);
     dom.scroll.addEventListener('dragover', (e) => {
@@ -936,6 +973,11 @@
       b.addEventListener('click', () => setTool(b.dataset.tool));
     });
     $('#tlSnap').addEventListener('click', () => AVP.main.toggleSnap());
+    $('#tlLinked').addEventListener('click', () => {
+      S.linkedSelection = S.linkedSelection === false;
+      AVP.toast(S.linkedSelection ? 'Linked selection on' : 'Linked selection off: clips select one at a time');
+      updateToolbar();
+    });
     $('#tlFit').addEventListener('click', fit);
     $('#tlMarker').addEventListener('click', () => AVP.edit.addMarker(S.playhead));
     $('#tlZoom').addEventListener('input', (e) => {

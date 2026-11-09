@@ -967,3 +967,28 @@ kbd {
 /* Font picker in the title controls: the list and the import button share one row */
 .font-pick { display: inline-flex; align-items: center; gap: 5px; min-width: 0; width: 100%; }
 .font-pick select { flex: 1; min-width: 0; }
+
+/* Razor tool: the line shows where the clip will be cut, snapped to the frame */
+.razor-cut {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: #ff4d4d;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  z-index: 14;
+  pointer-events: none;
+}
+.razor-cut.hidden { display: none; }
+.razor-cut span {
+  position: absolute;
+  top: 2px;
+  left: 6px;
+  white-space: nowrap;
+  background: #ff4d4d;
+  color: #fff;
+  font: 11px Consolas, "Cascadia Mono", monospace;
+  padding: 1px 5px;
+  border-radius: 2px;
+}

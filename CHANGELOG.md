@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.8.1
+
+### Trimming and linked clips
+- Trimming a clip no longer trims its linked video or audio. Drag the edge of the video and the
+  audio stays the same length, and the other way round. The link is kept.
+- Moving a linked clip still moves its partner, and cutting still cuts both.
+- Trimming several clips at once still works: clips you selected yourself are trimmed together.
+- Linked selection: a new button in the timeline toolbar. On (default) a click selects a clip and
+  its linked partner. Off, a click selects one clip.
+- A click on a clip from a multi-selection selects just that clip. Escape clears the selection.
+- Unlink works on the clips you select, even after one of them has been trimmed.
+
+### Razor
+- With the razor tool, a red line shows exactly where the clip will be cut, snapped to the frame,
+  with its timecode.
+
+### Fixes
+- Rubber-band selection on the timeline no longer throws an error when you release the mouse.
+- Audio clips on audio tracks are drawn in the audio colour, even when they come from a video file.
+
 ## 1.8.0
 
 ### Layout

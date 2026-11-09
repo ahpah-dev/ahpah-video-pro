@@ -587,6 +587,7 @@
       AVP.menu.close();
       if (AVP.dialog.isOpen()) AVP.dialog.close();
       if (AVP.monitor.isExporting()) AVP.monitor.finishExport();
+      else if (!AVP.dialog.isOpen() && S.selection.length) deselectAll();
       return;
     }
 
