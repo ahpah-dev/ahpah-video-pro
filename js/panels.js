@@ -946,7 +946,7 @@
       '<div class="fx-note">Adds the graphic at the playhead on the target video track.</div></div>' +
       '<div class="fx-group"><div class="fx-title">Browse titles and lower thirds</div>' +
       '<div class="lib-list">' + presets + '</div>' +
-      '<div class="fx-note">Double-click a preset to add it at the playhead.</div></div>' +
+      '<div class="fx-note">Click a preset to add it at the playhead.</div></div>' +
       '<div class="fx-group"><div class="fx-title">Selected graphic</div></div>' +
       selected;
 
@@ -954,7 +954,7 @@
     $('#gNewRect').addEventListener('click', () => AVP.edit.placeShape({ track: S.target.video, start: S.playhead, type: 'rect', mode: 'overwrite' }));
     $('#gNewEllipse').addEventListener('click', () => AVP.edit.placeShape({ track: S.target.video, start: S.playhead, type: 'ellipse', mode: 'overwrite' }));
     body.querySelectorAll('[data-preset]').forEach((el) =>
-      el.addEventListener('dblclick', () => AVP.edit.placeTitle({ track: S.target.video, start: S.playhead, preset: +el.dataset.preset, mode: 'overwrite' }))
+      el.addEventListener('click', () => AVP.edit.placeTitle({ track: S.target.video, start: S.playhead, preset: +el.dataset.preset, mode: 'overwrite' }))
     );
     if (isShape) {
       const id = c.id;

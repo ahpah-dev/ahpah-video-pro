@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.9.3
+
+### Graphics panel
+- One click on a title or lower-third preset adds it at the playhead. It no longer needs a double-click.
+
 ## 1.9.2
 
 ### Audio stacking
