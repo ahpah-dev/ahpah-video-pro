@@ -915,3 +915,20 @@ kbd {
 .mix-btns .tl-toggle { width: 22px; height: 20px; border: 1px solid #3c3c3c; font-size: 10px; }
 .mix-btns .tl-toggle.solo.on { color: #f0c75e; }
 .mix-btns .tl-toggle.mute.on { color: var(--err); }
+
+/* Transition handles: drag an edge of a transition to change its duration */
+.tr-badge { pointer-events: none; }
+.tr-h {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  pointer-events: auto;
+  cursor: ew-resize;
+  background: rgba(255, 255, 255, 0.18);
+  z-index: 4;
+}
+.tr-h.l { left: -3px; }
+.tr-h.r { right: -3px; }
+.tr-h.fixed { pointer-events: none; cursor: default; background: transparent; }
+.tr-badge:hover .tr-h:not(.fixed), .tr-h:hover { background: rgba(255, 255, 255, 0.55); }

@@ -134,21 +134,31 @@
     );
   }
 
-  // Transition badges sit on the cut they belong to.
+  // Transition badges sit on the cut they belong to. Each badge has handles at its edges:
+  // drag a handle to change the transition's duration.
   function transitionsHtml(list, track) {
     let html = '';
     const kind = S.tracks[track].kind;
     list.forEach((c) => {
-      if (!c.transIn) return;
       const R = AVP.roleWindows(c, list);
-      if (!R.in) return;
-      const left = R.in.a * S.zoom;
-      const width = Math.max(4, (R.in.b - R.in.a) * S.zoom);
-      const def = AVP.TRANSITIONS[R.in.type];
-      const label = def ? def.name : R.in.type;
-      html +=
-        `<div class="tr-badge ${kind}" data-trans-clip="${c.id}" style="left:${left}px;width:${width}px" ` +
-        `title="${AVP.esc(label)} (${R.in.centered ? 'centred' : 'from start'})"></div>`;
+      if (c.transIn && R.in) {
+        const d = R.in.b - R.in.a;
+        const label = AVP.TRANSITIONS[R.in.type] ? AVP.TRANSITIONS[R.in.type].name : R.in.type;
+        // A centred transition grows both ways; one that starts at the clip grows to the right only.
+        const leftOn = R.in.centered;
+        html +=
+          `<div class="tr-badge ${kind}" data-trans-clip="${c.id}" data-edge="in" data-centered="${R.in.centered ? 1 : 0}" ` +
+          `style="left:${R.in.a * S.zoom}px;width:${Math.max(4, d * S.zoom)}px" title="${AVP.esc(label)}: ${d.toFixed(2)} s">` +
+          `<span class="tr-h l${leftOn ? '' : ' fixed'}" data-th="l"></span><span class="tr-h r" data-th="r"></span></div>`;
+      }
+      if (c.transOut && R.out && !R.out.centered) {
+        const d = R.out.b - R.out.a;
+        const label = AVP.TRANSITIONS[R.out.type] ? AVP.TRANSITIONS[R.out.type].name : R.out.type;
+        html +=
+          `<div class="tr-badge ${kind}" data-trans-clip="${c.id}" data-edge="out" data-centered="0" ` +
+          `style="left:${R.out.a * S.zoom}px;width:${Math.max(4, d * S.zoom)}px" title="${AVP.esc(label)}: ${d.toFixed(2)} s">` +
+          `<span class="tr-h l" data-th="l"></span><span class="tr-h r fixed" data-th="r"></span></div>`;
+      }
     });
     return html;
   }
@@ -362,9 +372,77 @@
 
   /* ---------- pointer events ---------- */
 
+  /* ---------- transition handles ---------- */
+
+  // The transition object that a badge edits: the incoming clip's transIn, or the clip's transOut.
+  function transSpecOf(c, edge) {
+    return edge === 'out' ? c.transOut : c.transIn;
+  }
+
+  // Starts dragging a transition handle. The change is applied to the partner audio fade too.
+  function startTransDrag(badge, side, e) {
+    const c = AVP.findClip(badge.dataset.transClip);
+    if (!c) return;
+    const edge = badge.dataset.edge;
+    const spec = transSpecOf(c, edge);
+    if (!spec) return;
+    const centered = badge.dataset.centered === '1';
+    const list = S.clips.filter((o) => o.track === c.track);
+    // The longest a transition can be: it cannot run past either clip it joins.
+    let maxD = c.duration;
+    if (centered) {
+      const prev = list.find((o) => o.id !== c.id && Math.abs(AVP.clipEnd(o) - c.start) < AVP.EPS);
+      maxD = Math.min(c.duration, prev ? prev.duration : c.duration);
+    }
+    drag = {
+      kind: 'trans',
+      edge,
+      side,
+      centered,
+      clipId: c.id,
+      origD: spec.duration,
+      maxD,
+      startX: e.clientX,
+      moved: false,
+      pushed: AVP.pushUndo(),
+      partnerIds: AVP.partners(c).map((p) => p.id),
+    };
+  }
+
+  function updateTransDrag(e) {
+    const dx = (e.clientX - drag.startX) / S.zoom;
+    if (Math.abs(e.clientX - drag.startX) > 2) drag.moved = true;
+    // Centred: each side grows by half, so the handle moves twice as fast as the window edge.
+    // Edge transitions: the handle moves the duration one for one.
+    const grow = drag.side === 'r' ? dx : -dx;
+    const delta = drag.centered ? grow * 2 : grow;
+    const fps = S.fps;
+    let d = drag.origD + delta;
+    d = Math.round(AVP.clamp(d, 1 / fps, drag.maxD) * fps) / fps;
+    const c = AVP.findClip(drag.clipId);
+    if (!c) return;
+    [c].concat(drag.partnerIds.map((id) => AVP.findClip(id))).forEach((clip) => {
+      if (!clip) return;
+      const spec = transSpecOf(clip, drag.edge);
+      if (spec) spec.duration = d;
+    });
+    render();
+    AVP.monitor.draw();
+  }
+
   function onDown(e) {
     if (e.button !== 0) return;
     if (e.target.closest('.tl-head')) return;
+
+    const handle = e.target.closest('.tr-h');
+    if (handle && S.tool === 'select' && !handle.classList.contains('fixed')) {
+      const badge = handle.closest('.tr-badge');
+      if (badge) {
+        startTransDrag(badge, handle.dataset.th, e);
+        e.preventDefault();
+        return;
+      }
+    }
 
     if (S.tool === 'hand') {
       drag = { kind: 'pan', x0: e.clientX, s0: dom.scroll.scrollLeft };
@@ -483,6 +561,7 @@
     if (drag.kind === 'pan') dom.scroll.scrollLeft = drag.s0 - (e.clientX - drag.x0);
     else if (drag.kind === 'scrub') scrubTo(e.clientX);
     else if (drag.kind === 'marquee') updateMarquee(e);
+    else if (drag.kind === 'trans') updateTransDrag(e);
     else updateClipDrag(e);
   }
 

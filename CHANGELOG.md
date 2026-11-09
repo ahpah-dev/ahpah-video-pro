@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0
+
+### Transitions
+- Drag the edge of a transition box on the timeline to change its length. A centred transition grows
+  both ways from its cut; a transition at the start or end of a clip grows from its free edge.
+- The linked audio fade follows the same length, and each change is one undo step.
+
 ## 1.3.0
 
 ### Lumetri Color
