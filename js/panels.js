@@ -599,6 +599,15 @@
       el.addEventListener('dragstart', (e) => {
         e.dataTransfer.setData('application/x-avp-effect', el.dataset.drag);
         e.dataTransfer.effectAllowed = 'copy';
+        // The timeline reads this while the item is dragged, to preview a transition.
+        try {
+          AVP.libDrag = JSON.parse(el.dataset.drag);
+        } catch (err) {
+          AVP.libDrag = null;
+        }
+      });
+      el.addEventListener('dragend', () => {
+        AVP.libDrag = null;
       });
       // One click applies the item to the selection (or adds a title at the playhead).
       el.addEventListener('click', () => {

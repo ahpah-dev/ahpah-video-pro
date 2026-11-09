@@ -1137,3 +1137,29 @@ body.mdock-drag, body.mdock-drag * { user-select: none; cursor: grabbing !import
 }
 .panel-grip:hover { opacity: 1; background-image: radial-gradient(circle, #aaaaaa 1px, transparent 1.4px); }
 .dock-mark-h { border-radius: 2px; }
+
+/* Transition drop preview: shows the span a dragged transition will cover */
+.tr-drop-preview {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  z-index: 20;
+  pointer-events: none;
+  box-sizing: border-box;
+  border: 1px dashed #ffffff;
+  border-radius: 2px;
+  background: repeating-linear-gradient(135deg, rgba(150, 200, 255, 0.55) 0 5px, rgba(150, 200, 255, 0.18) 5px 10px);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 3px 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+.tr-drop-preview.cut { border-style: solid; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4); }
+.tr-drop-preview.bad {
+  border-color: #ff6b6b;
+  background: repeating-linear-gradient(135deg, rgba(230, 60, 60, 0.6) 0 5px, rgba(230, 60, 60, 0.25) 5px 10px);
+}

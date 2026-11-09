@@ -43,6 +43,14 @@ Essential Sound on an audio clip:
 
 ![Essential Sound panel](assets/screenshots/03-essential-sound.png)
 
+All the video transitions, each at its midpoint:
+
+![Video transitions at their midpoints](assets/screenshots/06-transitions.png)
+
+Dragging a transition onto a cut shows where it will land:
+
+![Transition drop preview on a cut](assets/screenshots/07-transition-drop-preview.png)
+
 ## Features
 
 - **Import** video, audio and still images. Imported clips keep their full original length
@@ -64,10 +72,14 @@ Essential Sound on an audio clip:
   scan lines and letterbox.
 - **Motion**: position, scale, rotation and opacity, with keyframes (the stopwatch and
   diamond buttons). Each keyed control has a lane under it: click a keyframe to go to it, drag to move it. Keyframes also work on effect settings and volume.
-- **Transitions**: cross dissolve, dip to black and white, wipes (left to right, right to left,
-  top to bottom, diagonal, box from the centre and iris), slides (left, right, top, bottom),
-  zoom, spin, and constant-gain audio fades. Drag them onto a clip edge, or use the clip menu. Video
-  transitions crossfade the linked audio.
+- **Transitions** (17 video, plus constant-gain audio fades): cross dissolve, blur dissolve, dip to black
+  and white, wipes (left to right, right to left, top to bottom, diagonal, box from the centre, iris,
+  clock, checkerboard, random blocks and venetian blinds), slides (left, right, top, bottom), zoom,
+  zoom through, whip pan and spin. Video transitions crossfade the linked audio.
+- **Drag and drop transitions**: drag one from the Effects tab onto the timeline. Drop it on a cut
+  between two clips and it is centred on the cut; drop it near a clip's start or end and it goes there.
+  A dashed box shows the span it will cover before you let go, and turns red when the transition does
+  not fit the track (a video transition over an audio clip). Clip menu: Transition at Start / End.
 - **Titles**: title clips with a font picker that lists the fonts installed on this computer,
   and an "Add font" button for a .ttf, .otf or .woff file (saved with the project). Size, colour, bold / italic, outline, shadow,
   background box, alignment, line height and width. Six presets are included.

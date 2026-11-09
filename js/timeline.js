@@ -766,6 +766,7 @@
       return;
     }
     if (!item) return;
+    hideTransitionPreview();
     const clipEl = e.target.closest('.clip');
     const lane = e.target.closest('.tl-lane[data-track]');
 
@@ -773,10 +774,14 @@
       if (!clipEl) return AVP.toast('Drop effects onto a clip', 'warn');
       AVP.edit.addFx([clipEl.dataset.id], item.type);
     } else if (item.kind === 'transition') {
-      if (!clipEl) return AVP.toast('Drop transitions onto the start or end of a clip', 'warn');
+      if (!clipEl) return AVP.toast('Drop a transition on a clip: near a cut it goes at the cut, otherwise at the start or end', 'warn');
+      const c = AVP.findClip(clipEl.dataset.id);
+      const def = AVP.TRANSITIONS[item.type];
+      if (!c || !def) return;
       const r = clipEl.getBoundingClientRect();
-      const edge = e.clientX - r.left < r.width / 2 ? 'start' : 'end';
-      AVP.edit.applyTransition(clipEl.dataset.id, item.type, edge);
+      // The same plan the preview showed, so the drop lands exactly where the preview was.
+      const plan = AVP.transitionDropPlan(clipsOnTrack(c.track), c, e.clientX - r.left, r.width, CUT_PX, def.dur);
+      AVP.edit.applyTransition(plan.clipId, item.type, plan.edge);
     } else if (item.kind === 'title') {
       if (!lane) return;
       const trackId = lane.dataset.track;
@@ -790,7 +795,50 @@
     const el = e.target.closest('.clip');
     if (hoverClipEl && hoverClipEl !== el) hoverClipEl.classList.remove('drop-target');
     hoverClipEl = el;
-    if (el && hasType(e, LIB_MIME)) el.classList.add('drop-target');
+    // Transitions show their own preview instead of outlining the clip.
+    const isTransition = AVP.libDrag && AVP.libDrag.kind === 'transition';
+    if (el && hasType(e, LIB_MIME) && !isTransition) el.classList.add('drop-target');
+  }
+
+  /* ---------- transition drop preview ---------- */
+
+  // Pointer distance (px) from a cut that still counts as dropping on that cut.
+  const CUT_PX = 12;
+  let trPreview = null;
+
+  function clipsOnTrack(track) {
+    return S.clips.filter((o) => o.track === track).sort((a, b) => a.start - b.start);
+  }
+
+  function hideTransitionPreview() {
+    if (trPreview) trPreview.remove();
+    trPreview = null;
+  }
+
+  // While a transition from the Effects library is dragged over a clip, shows the span it will cover:
+  // centred on a cut when the pointer is at a cut, otherwise at the clip's start or end. Red when the
+  // transition does not fit the track (a video transition on an audio clip, or the reverse).
+  function showTransitionPreview(e) {
+    const item = AVP.libDrag;
+    const el = e.target.closest('.clip');
+    const lane = e.target.closest('.tl-lane[data-track]');
+    const def = item && item.kind === 'transition' ? AVP.TRANSITIONS[item.type] : null;
+    if (!def || !el || !lane) return hideTransitionPreview();
+    const c = AVP.findClip(el.dataset.id);
+    if (!c) return hideTransitionPreview();
+    const r = el.getBoundingClientRect();
+    const plan = AVP.transitionDropPlan(clipsOnTrack(c.track), c, e.clientX - r.left, r.width, CUT_PX, def.dur);
+    const fits = def.audio === (S.tracks[c.track].kind === 'audio');
+    if (!trPreview) trPreview = document.createElement('div');
+    const a = Math.max(0, plan.span[0]);
+    const b = Math.max(a, plan.span[1]);
+    trPreview.className = 'tr-drop-preview' + (fits ? '' : ' bad') + (plan.centered ? ' cut' : '');
+    trPreview.textContent = !fits
+      ? (def.audio ? 'Audio fades go on audio clips' : 'Video transitions go on video clips')
+      : plan.centered ? def.name + ' at the cut' : def.name;
+    trPreview.style.left = a * S.zoom + 'px';
+    trPreview.style.width = Math.max(6, (b - a) * S.zoom) + 'px';
+    if (trPreview.parentElement !== lane) lane.appendChild(trPreview);
   }
 
   /* ---------- zoom / fit ---------- */
@@ -1017,8 +1065,10 @@
     dom.scroll.addEventListener('dragover', (e) => {
       onDragOver(e);
       markDropTarget(e);
+      showTransitionPreview(e);
     });
-    dom.scroll.addEventListener('dragleave', () => {
+    dom.scroll.addEventListener('dragleave', (e) => {
+      if (!e.relatedTarget || !dom.scroll.contains(e.relatedTarget)) hideTransitionPreview();
       if (hoverClipEl) hoverClipEl.classList.remove('drop-target');
       hoverClipEl = null;
     });

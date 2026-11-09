@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.17.0
+
+### Drag and drop transitions
+- Drag a transition from the Effects tab onto the timeline.
+- Drop it on a cut between two clips and it is centred on the cut. Drop it near a clip's start or end
+  and it goes at that edge. Before, the nearer half of the clip decided, even at a cut.
+- While you drag, a dashed box shows the span the transition will cover, with its name. The box is red
+  when the transition does not fit the track (a video transition over an audio clip, or an audio fade
+  over a video clip). Dropping in that case adds nothing and says why.
+- The drop lands exactly where the preview showed.
+
+### More transitions
+- Blur Dissolve: the outgoing clip blurs as the incoming one sharpens.
+- Zoom Through: the incoming clip zooms in from larger, and the outgoing one zooms past the camera.
+- Whip Pan: a fast sideways move with motion blur at its peak.
+- Clock Wipe: a radial sweep from the top, clockwise.
+- Checkerboard Wipe: squares open in a checkerboard, even squares first.
+- Random Blocks: blocks appear in a fixed scattered order.
+- Venetian Blinds: horizontal slats open from the left, one after another.
+
 ## 1.16.0
 
 ### Recovery

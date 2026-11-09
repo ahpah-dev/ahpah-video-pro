@@ -230,6 +230,13 @@
     'wipe-diag': { name: 'Diagonal Wipe', cat: 'Wipe', dur: 1, audio: false },
     'wipe-box': { name: 'Box Wipe (from centre)', cat: 'Wipe', dur: 1, audio: false },
     iris: { name: 'Iris (circle)', cat: 'Wipe', dur: 1, audio: false },
+    'zoom-through': { name: 'Zoom Through', cat: 'Motion', dur: 1, audio: false },
+    'whip-pan': { name: 'Whip Pan', cat: 'Motion', dur: 1, audio: false },
+    'blur-dissolve': { name: 'Blur Dissolve', cat: 'Dissolve', dur: 1, audio: false },
+    'clock-wipe': { name: 'Clock Wipe', cat: 'Wipe', dur: 1, audio: false },
+    'checker-wipe': { name: 'Checkerboard Wipe', cat: 'Wipe', dur: 1, audio: false },
+    'random-blocks': { name: 'Random Blocks', cat: 'Wipe', dur: 1, audio: false },
+    blinds: { name: 'Venetian Blinds', cat: 'Wipe', dur: 1, audio: false },
     'audio-fade': { name: 'Constant Gain (Audio Fade)', cat: 'Audio', dur: 1, audio: true },
   };
 
@@ -580,6 +587,24 @@
       case 'iris':
         v.mask = { type: role.type, p };
         break;
+      case 'zoom-through':
+        v.scale *= 1.6 - 0.6 * p;
+        v.alpha *= p;
+        break;
+      case 'whip-pan':
+        v.dx += 1 - p;
+        v.blur += Math.sin(Math.PI * p) * 24;
+        break;
+      case 'blur-dissolve':
+        v.alpha *= p;
+        v.blur += (1 - p) * 14;
+        break;
+      case 'clock-wipe':
+      case 'checker-wipe':
+      case 'random-blocks':
+      case 'blinds':
+        v.mask = { type: role.type, p };
+        break;
       default:
         break; // audio-fade and unknown types leave the picture alone
     }
@@ -630,6 +655,24 @@
       case 'iris':
         if (!role.centered) v.alpha *= 1 - p;
         break;
+      case 'zoom-through':
+        v.scale *= 1 + 0.6 * p;
+        v.alpha *= 1 - p;
+        break;
+      case 'whip-pan':
+        v.dx -= p;
+        v.blur += Math.sin(Math.PI * p) * 24;
+        break;
+      case 'blur-dissolve':
+        v.alpha *= 1 - p;
+        v.blur += p * 14;
+        break;
+      case 'clock-wipe':
+      case 'checker-wipe':
+      case 'random-blocks':
+      case 'blinds':
+        if (!role.centered) v.alpha *= 1 - p;
+        break;
       default:
         break;
     }
@@ -641,7 +684,7 @@
    * and optional full-frame colour overlays drawn before / after the clip.
    */
   AVP.visualAt = function (R, t) {
-    const v = { alpha: 1, dx: 0, dy: 0, scale: 1, rot: 0, clip: null, mask: null, before: null, after: null };
+    const v = { alpha: 1, dx: 0, dy: 0, scale: 1, rot: 0, blur: 0, clip: null, mask: null, before: null, after: null };
     if (R.in && t >= R.in.a - EPS && t < R.in.b) {
       applyIn(v, R.in, clamp01((t - R.in.a) / (R.in.b - R.in.a)));
     }
@@ -649,6 +692,33 @@
       applyOut(v, R.out, clamp01((t - R.out.a) / (R.out.b - R.out.a)));
     }
     return v;
+  };
+
+  /*
+   * Where a transition from the Effects library lands when it is dropped on a clip. `list` holds the clips
+   * on the clip's track, `x` is the pointer's distance from the clip's left edge in `width` pixels, and
+   * `cutPx` is how close to a cut (a touching clip) the pointer must be to take that cut. Returns the clip
+   * and edge to apply to (what applyTransition takes) and the time span the transition will cover, which
+   * the timeline shows as a preview. A cut is centred on the boundary; a clip end without a neighbour is
+   * an edge transition that starts or ends at the clip's own edge.
+   */
+  AVP.transitionDropPlan = function (list, c, x, width, cutPx, dur) {
+    const end = c.start + c.duration;
+    const prev = list.find((o) => o.id !== c.id && Math.abs(o.start + o.duration - c.start) < EPS);
+    const next = list.find((o) => o.id !== c.id && Math.abs(o.start - end) < EPS);
+    const d = dur || 1;
+    let edge;
+    if (x < cutPx && prev) edge = 'start';
+    else if (width - x < cutPx && next) edge = 'end';
+    else edge = x < width / 2 ? 'start' : 'end';
+    if (edge === 'start') {
+      const centered = !!prev;
+      const span = centered ? [c.start - d / 2, c.start + d / 2] : [c.start, c.start + Math.min(d, c.duration)];
+      return { clipId: c.id, edge, centered, span };
+    }
+    const centered = !!next;
+    const span = centered ? [end - d / 2, end + d / 2] : [end - Math.min(d, c.duration), end];
+    return { clipId: c.id, edge, centered, span };
   };
 
   // Audio gain multiplier from constant-gain transitions at time t.

@@ -224,7 +224,11 @@
     const rot = ((AVP.propAt(c, 'rotation', t) + (v.rot || 0)) * Math.PI) / 180;
     const cx = W / 2 + (px + v.dx) * W;
     const cy = H / 2 + (py + v.dy) * H;
-    const filter = HAS_FILTER ? AVP.buildFilter(c, t) : 'none';
+    // Transitions can add blur (Blur Dissolve, Whip Pan) on top of the clip's own filters.
+    const baseFilter = HAS_FILTER ? AVP.buildFilter(c, t) : 'none';
+    const filter = HAS_FILTER && v.blur > 0.05
+      ? (baseFilter === 'none' ? '' : baseFilter + ' ') + 'blur(' + v.blur.toFixed(2) + 'px)'
+      : baseFilter;
     const fxOf = (type) => (c.fx || []).find((f) => f.type === type && f.enabled) || null;
     const P = (f, k) => AVP.fxParamAt(c, f, k, t);
 
@@ -294,6 +298,58 @@
     return out;
   }
 
+  // Transition shapes drawn as paths: each fills the frame at progress p (0 to 1).
+  const NEW_MASKS = {
+    'clock-wipe': (g, p, W, H) => {
+      const cx = W / 2;
+      const cy = H / 2;
+      const R = Math.hypot(W, H) / 2;
+      const a0 = -Math.PI / 2;
+      g.moveTo(cx, cy);
+      if (p > 0.0005) g.arc(cx, cy, R, a0, a0 + p * Math.PI * 2);
+      g.closePath();
+    },
+    'checker-wipe': (g, p, W, H) => {
+      // Even squares grow first, then the odd ones, so the picture appears in a checkerboard.
+      const cols = 8;
+      const rows = 5;
+      const cw = W / cols;
+      const ch = H / rows;
+      for (let j = 0; j < rows; j++) {
+        for (let i = 0; i < cols; i++) {
+          const phase = (i + j) % 2;
+          const q = clamp01(2 * p - phase);
+          if (q <= 0) continue;
+          const w = cw * q;
+          const h = ch * q;
+          g.rect(i * cw + (cw - w) / 2, j * ch + (ch - h) / 2, w, h);
+        }
+      }
+    },
+    'random-blocks': (g, p, W, H) => {
+      // Blocks appear in a fixed scattered order, so each transition looks the same every time it plays.
+      const cols = 16;
+      const rows = 9;
+      const cw = W / cols;
+      const ch = H / rows;
+      for (let j = 0; j < rows; j++) {
+        for (let i = 0; i < cols; i++) {
+          const h = Math.abs(Math.sin(i * 12.9898 + j * 78.233) * 43758.5453) % 1;
+          if (h < p) g.rect(i * cw, j * ch, cw + 1, ch + 1);
+        }
+      }
+    },
+    blinds: (g, p, W, H) => {
+      // Horizontal slats that open from the left, one after another down the frame.
+      const n = 12;
+      const sh = H / n;
+      for (let k = 0; k < n; k++) {
+        const q = clamp01(p * 1.5 - (k / n) * 0.5);
+        if (q > 0) g.rect(0, k * sh, W * q, sh + 1);
+      }
+    },
+  };
+
   function clipToVisual(ctx, v, W, H) {
     if (v.clip) {
       ctx.beginPath();
@@ -302,6 +358,12 @@
     }
     const m = v.mask;
     if (!m) return;
+    if (NEW_MASKS[m.type]) {
+      ctx.beginPath();
+      NEW_MASKS[m.type](ctx, m.p, W, H);
+      ctx.clip();
+      return;
+    }
     ctx.beginPath();
     if (m.type === 'iris') {
       ctx.arc(W / 2, H / 2, Math.max(0.001, Math.hypot(W / 2, H / 2) * m.p), 0, Math.PI * 2);
