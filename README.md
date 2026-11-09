@@ -21,6 +21,28 @@ it, sell it or bundle it however you like.
 > connected to Adobe Inc. "Premiere Pro" is a trademark of Adobe; it is mentioned only to
 > describe the layout.
 
+## Screenshots
+
+The editing workspace, with the Program monitor, Effect Controls and timeline:
+
+![Editing workspace with timeline, monitors and Effect Controls](assets/screenshots/01-editing.png)
+
+Lumetri Color with basic correction and colour wheels:
+
+![Lumetri Color panel](assets/screenshots/02-lumetri-color.png)
+
+Captions workspace, with caption text and timing on the CC track above the video:
+
+![Captions workspace](assets/screenshots/04-captions.png)
+
+Effects workspace with the effects library:
+
+![Effects workspace](assets/screenshots/05-effects.png)
+
+Essential Sound on an audio clip:
+
+![Essential Sound panel](assets/screenshots/03-essential-sound.png)
+
 ## Features
 
 - **Import** video, audio and still images. Imported clips keep their full original length
