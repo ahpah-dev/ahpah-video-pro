@@ -168,7 +168,7 @@
 
   // Post effects need the finished picture, so they force the layer path.
   function needsLayer(c) {
-    return (c.fx || []).some((f) => f.enabled && POST_EFFECTS[f.type]);
+    return (c.fx || []).some((f) => f.enabled && (POST_EFFECTS[f.type] || f.type === 'lumetri'));
   }
 
   // Paints the clip's own content onto target. Returns false while media is not ready.
@@ -214,6 +214,24 @@
     target.drawImage(s.src, -dw / 2, -dh / 2, dw, dh);
     target.restore();
     return true;
+  }
+
+  // Lumetri Color: grades the clip's layer on the GPU (no-op when WebGL is unavailable).
+  const LUMETRI_KEYS = ['exposure', 'contrast', 'highlights', 'shadows', 'whites', 'blacks', 'saturation', 'temperature', 'tint', 'vibrance', 'fade'];
+  function applyLumetri(c, t, W, H) {
+    if (!AVP.gpuOk) return;
+    (c.fx || []).forEach((fx) => {
+      if (fx.type !== 'lumetri' || !fx.enabled) return;
+      const p = {};
+      LUMETRI_KEYS.forEach((k) => (p[k] = AVP.fxParamAt(c, fx, k, t)));
+      const graded = AVP.gpu.grade(layer, p);
+      if (!graded) return;
+      lctx.setTransform(1, 0, 0, 1, 0, 0);
+      lctx.globalAlpha = 1;
+      lctx.globalCompositeOperation = 'source-over';
+      lctx.clearRect(0, 0, W, H);
+      lctx.drawImage(graded, 0, 0);
+    });
   }
 
   // Effects that work on the finished layer: mosaic, glow, vignette and film grain.
@@ -302,6 +320,7 @@
     lctx.filter = 'none';
     lctx.clearRect(0, 0, W, H);
     if (!paintContent(lctx, c, t, v, getSource, W, H)) return;
+    applyLumetri(c, t, W, H);
     applyLayerEffects(c, t, W, H);
     ctx.save();
     if (v.clip) {

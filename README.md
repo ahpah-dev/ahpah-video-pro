@@ -49,6 +49,10 @@ it, sell it or bundle it however you like.
   as PNG.
 - **Sequence settings**: frame size (HD, 4K, vertical, square) and frame rate.
 - **Workspaces**: Editing, Assembly, Effects, Color and Audio layouts (the other workspace tabs are placeholders).
+- **Lumetri Color**: exposure, contrast, highlights, shadows, whites, blacks, white balance,
+  saturation, vibrance and faded film, computed on the GPU and keyframeable.
+- **Essential Sound**: audio types, loudness auto-match, low cut, presence and compression.
+- **Audio Clip Mixer**: track faders, mute, solo and meters, with a master meter.
 - **Context menus** on every area: clips, tracks, the ruler, markers, the Project panel,
   both monitors and the background.
 - **Projects** (`.ahpvp`): save and reopen timelines. The timeline is also autosaved in the

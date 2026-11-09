@@ -67,19 +67,33 @@
       });
       let gain = null;
       let src = null;
+      let hp = null;
+      let eq = null;
+      let comp = null;
       if (audioCtx) {
         try {
           src = audioCtx.createMediaElementSource(el);
+          hp = audioCtx.createBiquadFilter(); // Essential Sound: low cut
+          hp.type = 'highpass';
+          eq = audioCtx.createBiquadFilter(); // Essential Sound: presence
+          eq.type = 'peaking';
+          eq.frequency.value = 3000;
+          eq.Q.value = 1;
+          comp = audioCtx.createDynamicsCompressor(); // Essential Sound: compression
           gain = audioCtx.createGain();
-          src.connect(gain);
-          gain.connect(masterGain || audioCtx.destination);
-          if (streamDest) gain.connect(streamDest);
+          src.connect(hp);
+          hp.connect(eq);
+          eq.connect(comp);
+          comp.connect(gain);
         } catch (err) {
           gain = null;
           src = null;
+          hp = null;
+          eq = null;
+          comp = null;
         }
       }
-      n = { el, img: null, gain, src, mediaId: m.id, warned: false };
+      n = { el, img: null, gain, src, hp, eq, comp, bus: null, mediaId: m.id, warned: false };
     }
     nodes.set(c.id, n);
     return n;
@@ -89,6 +103,70 @@
   function getSource(c) {
     if (c.kind === 'title') return null;
     return ensureNode(c);
+  }
+
+  // One bus per track: volume (the mixer fader), a meter, and the way to master and export.
+  const buses = new Map();
+  function trackBus(id) {
+    if (!audioCtx) return null;
+    let b = buses.get(id);
+    if (!b) {
+      const input = audioCtx.createGain();
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 1024;
+      input.connect(masterGain || audioCtx.destination);
+      if (streamDest) input.connect(streamDest);
+      input.connect(analyser);
+      b = { input, analyser };
+      buses.set(id, b);
+    }
+    return b;
+  }
+
+  // Keeps a clip's gain connected to the bus of the track it is on.
+  function connectBus(n, c) {
+    if (!n.gain) return;
+    const bus = trackBus(c.track);
+    if (!bus || n.bus === bus) return;
+    if (n.bus) n.gain.disconnect();
+    n.gain.connect(bus.input);
+    n.bus = bus;
+  }
+
+  // Essential Sound: applies the clip's low cut, presence and compression to its nodes.
+  function applySound(n, c) {
+    if (!n.hp) return;
+    const snd = AVP.soundOf(c);
+    n.hp.frequency.value = snd.enabled ? Math.max(20, snd.lowCut) : 20;
+    n.eq.gain.value = snd.enabled ? snd.presence : 0;
+    if (snd.enabled && snd.compress) {
+      n.comp.threshold.value = -24;
+      n.comp.ratio.value = 3;
+      n.comp.knee.value = 12;
+      n.comp.attack.value = 0.005;
+      n.comp.release.value = 0.25;
+    } else {
+      n.comp.threshold.value = 0;
+      n.comp.ratio.value = 1;
+    }
+  }
+
+  // Track faders (dB) into the buses. Runs every tick, so mixer moves are heard at once.
+  function syncBuses() {
+    if (!audioCtx) return;
+    Object.keys(S.tracks).forEach((id) => {
+      const b = trackBus(id);
+      if (b) b.input.gain.value = Math.pow(10, (S.tracks[id].volume || 0) / 20);
+    });
+  }
+
+  // Essential Sound loudness match: moves the clip towards its target RMS level.
+  function autoGain(c) {
+    const snd = AVP.soundOf(c);
+    if (!snd.enabled || !snd.autoMatch) return 1;
+    const m = AVP.findMedia(c.mediaId);
+    if (!m || m.rmsDb == null) return 1;
+    return Math.pow(10, AVP.clamp(snd.target - m.rmsDb, -12, 12) / 20);
   }
 
   function hasLinkedAudio(c) {
@@ -103,7 +181,7 @@
     if (tr.kind === 'audio' && !tr.solo && Object.keys(S.tracks).some((id) => S.tracks[id].kind === 'audio' && S.tracks[id].solo)) return 0;
     const m = AVP.findMedia(c.mediaId);
     if (m && m.type === 'video' && tr.kind === 'video' && hasLinkedAudio(c)) return 0;
-    return Math.max(0, (AVP.propAt(c, 'volume', t) / 100) * AVP.audioRamp(R, t));
+    return Math.max(0, (AVP.propAt(c, 'volume', t) / 100) * AVP.audioRamp(R, t) * autoGain(c));
   }
 
   function cleanupNodes() {
@@ -117,6 +195,9 @@
         n.el.load();
       }
       if (n.gain) n.gain.disconnect();
+      if (n.comp) n.comp.disconnect();
+      if (n.eq) n.eq.disconnect();
+      if (n.hp) n.hp.disconnect();
       if (n.src) n.src.disconnect();
       nodes.delete(id);
     }
@@ -141,6 +222,7 @@
   // Keeps media elements in step with the playhead.
   let cleanedVersion = -1;
   function sync() {
+    syncBuses();
     if (cleanedVersion !== AVP.dataVersion) {
       cleanupNodes();
       cleanedVersion = AVP.dataVersion;
@@ -154,7 +236,11 @@
       if (c.kind === 'title') continue;
       const n = ensureNode(c);
       if (!n) continue;
-      if (n.gain) n.gain.gain.value = gainFor(c, R, t);
+      if (n.gain) {
+        n.gain.gain.value = gainFor(c, R, t);
+        connectBus(n, c);
+        applySound(n, c);
+      }
       if (!n.el) continue;
 
       const el = n.el;
@@ -516,5 +602,9 @@
     getSource,
     audioContext: () => audioCtx,
     masterAnalyser: () => masterAnalyser,
+    trackAnalyser: (id) => {
+      const b = trackBus(id);
+      return b ? b.analyser : null;
+    },
   };
 })();

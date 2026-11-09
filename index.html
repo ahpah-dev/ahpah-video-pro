@@ -139,9 +139,15 @@
     <section class="panel" id="fxPanel">
       <div class="ptabs">
         <button class="ptab active" id="tabControls" data-rtab="controls">Effect Controls</button>
+        <button class="ptab" id="tabLumetri" data-rtab="lumetri">Lumetri Color</button>
+        <button class="ptab" id="tabSound" data-rtab="sound">Essential Sound</button>
+        <button class="ptab" id="tabMixer" data-rtab="mixer">Audio Clip Mixer</button>
         <button class="ptab" id="tabMetadata" data-rtab="metadata">Metadata</button>
       </div>
       <div class="fx-body" id="fxBody"></div>
+      <div class="fx-body hidden" id="lumetriBody"></div>
+      <div class="fx-body hidden" id="soundBody"></div>
+      <div class="fx-body hidden" id="mixerBody"></div>
       <div class="fx-body hidden" id="infoBody"></div>
     </section>
 
@@ -203,6 +209,7 @@
   <script src="js/state.js"></script>
   <script src="js/effects.js"></script>
   <script src="js/edits.js"></script>
+  <script src="js/gpu.js"></script>
   <script src="js/render.js"></script>
   <script src="js/monitor.js"></script>
   <script src="js/bin.js"></script>

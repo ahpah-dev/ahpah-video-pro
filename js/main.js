@@ -381,6 +381,10 @@
     panelProject: () => AVP.panels.setPanel('project'),
     panelMarkers: () => AVP.panels.setPanel('markers'),
     panelMetadata: () => AVP.panels.setPanel('metadata'),
+    panelLumetri: () => AVP.panels.setPanel('lumetri'),
+    panelSound: () => AVP.panels.setPanel('sound'),
+    panelMixer: () => AVP.panels.setPanel('mixer'),
+    addLumetri: () => AVP.edit.addFx(S.selection.slice(), 'lumetri'),
     prevMarker: () => AVP.monitor.jumpEdit(-1),
     nextMarker: () => AVP.monitor.jumpEdit(1),
     clearMarkers: () => {
@@ -441,6 +445,7 @@
       items: [
         { label: 'Speed / Duration…', key: 'Ctrl+R', action: 'speed' },
         { label: 'Enable / Disable', action: 'enable' },
+        { label: 'Add Lumetri Color', action: 'addLumetri' },
         { label: 'Link Selected', action: 'link' },
         { label: 'Unlink', action: 'unlink' },
         { sep: true },
@@ -506,6 +511,9 @@
         { label: 'Effects', action: 'panelEffects' },
         { label: 'Markers', action: 'panelMarkers' },
         { label: 'Effect Controls', action: 'panelControls' },
+        { label: 'Lumetri Color', action: 'panelLumetri' },
+        { label: 'Essential Sound', action: 'panelSound' },
+        { label: 'Audio Clip Mixer', action: 'panelMixer' },
         { label: 'Metadata', action: 'panelMetadata' },
         { sep: true },
         { label: 'Editing workspace', action: 'wsEditing' },
@@ -807,6 +815,7 @@
   }
 
   function init() {
+    AVP.gpu.init();
     document.querySelectorAll('[data-icon]').forEach(AVP.icons.apply);
     AVP.menu.init();
     AVP.dialog.init();

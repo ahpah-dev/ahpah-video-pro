@@ -90,6 +90,20 @@
     style.appendChild(document.createTextNode(`.clip.wv-${media.id}{background-image:url("${media.wave}")}`));
   }
 
+  // Average level of the audio in dB (RMS), used by Essential Sound loudness match.
+  function measureRmsDb(buffer) {
+    const d = buffer.getChannelData(0);
+    const step = Math.max(1, Math.floor(d.length / 400000));
+    let sum = 0;
+    let n = 0;
+    for (let i = 0; i < d.length; i += step) {
+      sum += d[i] * d[i];
+      n++;
+    }
+    const rms = Math.sqrt(sum / Math.max(1, n));
+    return rms > 0 ? 20 * Math.log10(rms) : null;
+  }
+
   // Decodes the audio track once so the timeline can draw it. The decoded length also
   // corrects media whose container did not report a duration.
   function decodeWave(media, file) {
@@ -101,6 +115,7 @@
       .then((buf) => ac.decodeAudioData(buf))
       .then((audio) => {
         media.wave = makeWave(audio);
+        media.rmsDb = measureRmsDb(audio);
         setWaveRule(media);
         media.hasAudio = true;
         if (media.durationGuess && audio.duration > 0) {

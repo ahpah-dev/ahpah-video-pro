@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.3.0
+
+### Lumetri Color
+- New Lumetri Color effect and panel: exposure, contrast, highlights, shadows, whites and blacks,
+  temperature and tint, saturation, vibrance and faded film. Keyframes work on every control.
+- Grading runs on the GPU in a WebGL shader, frame by frame, so playback and export use the same
+  result. Browsers without WebGL fall back to CSS filters for exposure, contrast and saturation.
+- Add it from the Lumetri Color tab, the Clip menu, or the Effects library.
+
+### Essential Sound
+- New Essential Sound panel for audio clips (and the audio of video clips).
+- Audio types (Dialogue, Music, Sound Effects, Ambience) set starting values.
+- Auto-match loudness moves a clip toward a target level, based on its measured RMS.
+- Clean up: low cut, presence EQ and compression, applied in the audio chain before the track.
+
+### Audio Clip Mixer
+- Mixer tab with a fader, meter, mute and solo for each audio track, plus a master meter.
+- Track faders are in dB and apply to every clip on the track, including the export mix.
+- Meters read the real audio graph, so they respond to what is playing.
+
 ## 1.2.0
 
 ### Premiere Pro-style interface

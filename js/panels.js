@@ -161,7 +161,7 @@
         `<div class="fx-card" data-fx="${fx.id}">` +
         `<div class="fx-card-head"><label class="df-check"><input type="checkbox" data-fxon="${fx.id}"${fx.enabled ? ' checked' : ''}> ${esc(def.name)}</label>` +
         `<button class="btn tiny" data-fxdel="${fx.id}" title="Remove effect">Remove</button></div>` +
-        def.params.map((p) => paramRow(c, 'fx:' + fx.id + ':' + p.k, p.label, p.def, { min: p.min, max: p.max, unit: p.unit || '' })).join('') +
+        def.params.map((p) => paramRow(c, 'fx:' + fx.id + ':' + p.k, p.label, p.def, { min: p.min, max: p.max, step: p.step || 1, unit: p.unit || '' })).join('') +
         `</div>`;
     });
     html +=
@@ -426,17 +426,22 @@
     if (name === 'markers') renderMarkers();
   }
 
+  const RIGHT_PANES = { controls: '#fxBody', lumetri: '#lumetriBody', sound: '#soundBody', mixer: '#mixerBody', metadata: '#infoBody' };
+  const RIGHT_TABS = Object.keys(RIGHT_PANES);
+
   function setRightTab(name) {
     S.rightTab = name;
     document.querySelectorAll('[data-rtab]').forEach((b) => b.classList.toggle('active', b.dataset.rtab === name));
-    if (controlsEl) controlsEl.classList.toggle('hidden', name !== 'controls');
-    if (infoEl) infoEl.classList.toggle('hidden', name !== 'metadata');
-    if (name === 'metadata') renderInfo();
+    Object.keys(RIGHT_PANES).forEach((k) => {
+      const el = $(RIGHT_PANES[k]);
+      if (el) el.classList.toggle('hidden', k !== name);
+    });
+    renderSide();
   }
 
   // Accepts the names used by menus and shortcuts: controls | metadata | project | effects | markers.
   function setPanel(name) {
-    if (name === 'controls' || name === 'metadata') setRightTab(name);
+    if (RIGHT_TABS.indexOf(name) >= 0) setRightTab(name);
     else setLeftTab(name);
     S.panel = name;
   }
@@ -517,10 +522,224 @@
       '</table>';
   }
 
+  /* ---------- shared parameter wiring for the grading and sound panels ---------- */
+
+  function bindParams(root, c) {
+    root.querySelectorAll('input[data-param]').forEach((inp) => {
+      const key = inp.dataset.param;
+      inp.addEventListener('pointerdown', () => AVP.pushUndo());
+      inp.addEventListener('input', () => {
+        const cur = AVP.findClip(c.id);
+        if (!cur) return;
+        writeParam(cur, key, +inp.value);
+        const out = inp.parentElement.querySelector('output');
+        if (out) out.textContent = Math.round(+inp.value * 10) / 10 + (out.textContent.match(/[^\d.\-]+$/) || [''])[0];
+        AVP.monitor.draw();
+      });
+    });
+    root.querySelectorAll('[data-kf]').forEach((b) => b.addEventListener('click', () => toggleKeyframing(c, b.dataset.kf)));
+    root.querySelectorAll('[data-kfkey]').forEach((b) => b.addEventListener('click', () => toggleKeyAtPlayhead(c, b.dataset.kfkey)));
+  }
+
+  /* ---------- Lumetri Color ---------- */
+
+  const LUMETRI_GROUPS = [
+    { title: 'Basic Correction', keys: ['exposure', 'contrast', 'highlights', 'shadows', 'whites', 'blacks'] },
+    { title: 'White Balance', keys: ['temperature', 'tint'] },
+    { title: 'Creative', keys: ['vibrance', 'saturation', 'fade'] },
+  ];
+
+  function renderLumetri() {
+    const body = $('#lumetriBody');
+    if (!body) return;
+    const c = AVP.selectedClips()[0];
+    if (!c) {
+      body.innerHTML = '<div class="hint">Select a clip on the timeline to grade it with Lumetri Color.</div>';
+      return;
+    }
+    const fx = c.fx.find((f) => f.type === 'lumetri');
+    const m = AVP.findMedia(c.mediaId);
+    const name = m ? m.name : c.kind === 'title' ? 'Title' : 'Clip';
+    if (!fx) {
+      body.innerHTML =
+        '<div class="fx-head"><div class="fx-name">Lumetri Color</div><div class="fx-sub">' + AVP.esc(name) + ' · ' + c.track + '</div></div>' +
+        '<div class="fx-note">Grade this clip: exposure, white balance, tones, saturation and fade. Changes are computed on the GPU frame by frame.</div>' +
+        '<button class="btn primary" id="lumAdd">Add Lumetri Color</button>';
+      $('#lumAdd').addEventListener('click', () => AVP.edit.addFx([c.id], 'lumetri'));
+      return;
+    }
+    let html =
+      '<div class="fx-head"><div class="fx-name">Lumetri Color</div><div class="fx-sub">' + AVP.esc(name) + ' · ' + c.track + '</div></div>' +
+      '<div class="fx-card-head"><label class="df-check"><input type="checkbox" id="lumOn"' + (fx.enabled ? ' checked' : '') + '> Enabled</label>' +
+      '<span><button class="btn tiny" id="lumReset">Reset</button> <button class="btn tiny" id="lumRemove">Remove</button></span></div>';
+    LUMETRI_GROUPS.forEach((g) => {
+      html += '<div class="fx-group"><div class="fx-title">' + g.title + '</div>';
+      html += g.keys
+        .map((k) => {
+          const d = AVP.effectParamDef('lumetri', k);
+          return paramRow(c, 'fx:' + fx.id + ':' + k, d.label, d.def, { min: d.min, max: d.max, step: d.step || 1, unit: d.unit || '' });
+        })
+        .join('');
+      html += '</div>';
+    });
+    html += '<div class="fx-note">Shadows, highlights, whites and blacks move tones in their own range. Use the stopwatch on any control to keyframe it.</div>';
+    body.innerHTML = html;
+    bindParams(body, c);
+    $('#lumOn').addEventListener('change', (e) => {
+      AVP.pushUndo();
+      fx.enabled = e.target.checked;
+      AVP.refresh();
+    });
+    $('#lumReset').addEventListener('click', () => {
+      AVP.pushUndo();
+      LUMETRI_GROUPS.forEach((g) => g.keys.forEach((k) => (fx.params[k] = AVP.effectParamDef('lumetri', k).def)));
+      AVP.refresh();
+    });
+    $('#lumRemove').addEventListener('click', () => AVP.edit.removeFx(c.id, fx.id));
+  }
+
+  /* ---------- Essential Sound ---------- */
+
+  // Essential Sound works on the audio clip: the clip itself, or the audio partner of a video clip.
+  function soundClipFor(c) {
+    if (!c) return null;
+    if (AVP.trackKind(c.track) === 'audio') return c;
+    return AVP.partners(c).find((p) => AVP.trackKind(p.track) === 'audio') || c;
+  }
+
+  function setSoundField(clipId, patch) {
+    const c = AVP.findClip(clipId);
+    if (!c) return;
+    c.sound = Object.assign({}, AVP.soundOf(c), patch);
+    AVP.monitor.sync();
+  }
+
+  function renderSound() {
+    const body = $('#soundBody');
+    if (!body) return;
+    const c = soundClipFor(AVP.selectedClips()[0]);
+    if (!c) {
+      body.innerHTML = '<div class="hint">Select an audio clip, or a video clip with sound, to use Essential Sound.</div>';
+      return;
+    }
+    const snd = AVP.soundOf(c);
+    const m = AVP.findMedia(c.mediaId);
+    const options = Object.keys(AVP.SOUND_PRESETS)
+      .map((k) => '<option value="' + k + '"' + (k === snd.type ? ' selected' : '') + '>' + AVP.SOUND_PRESETS[k].label + '</option>')
+      .join('');
+    const level = m && m.rmsDb != null ? m.rmsDb.toFixed(1) + ' dB RMS' : 'not measured';
+    body.innerHTML =
+      '<div class="fx-head"><div class="fx-name">Essential Sound</div><div class="fx-sub">' + AVP.esc(m ? m.name : 'Audio') + ' · ' + c.track + '</div></div>' +
+      '<div class="fx-group"><div class="fx-title">Audio Type</div>' +
+      '<select class="wide" id="snType">' + options + '</select>' +
+      '<div class="fx-note">A type sets starting values for the settings below. Adjust any of them to fine-tune.</div>' +
+      '<label class="df-check"><input type="checkbox" id="snOn"' + (snd.enabled ? ' checked' : '') + '> Essential Sound enabled</label></div>' +
+      '<div class="fx-group"><div class="fx-title">Loudness</div>' +
+      '<label class="df-check"><input type="checkbox" id="snAuto"' + (snd.autoMatch ? ' checked' : '') + '> Auto-match loudness to target</label>' +
+      '<div class="fx-row"><span class="fx-label">Target</span><input type="range" id="snTarget" min="-40" max="0" step="1" value="' + snd.target + '"><output>' + snd.target + ' dB</output><span></span><span></span></div>' +
+      '<div class="fx-kv"><span>Measured level</span><b>' + level + '</b></div></div>' +
+      '<div class="fx-group"><div class="fx-title">Clean Up</div>' +
+      '<div class="fx-row"><span class="fx-label">Low cut</span><input type="range" id="snLow" min="20" max="300" step="5" value="' + snd.lowCut + '"><output>' + snd.lowCut + ' Hz</output><span></span><span></span></div>' +
+      '<div class="fx-row"><span class="fx-label">Presence</span><input type="range" id="snPres" min="-6" max="8" step="0.5" value="' + snd.presence + '"><output>' + snd.presence + ' dB</output><span></span><span></span></div>' +
+      '<label class="df-check"><input type="checkbox" id="snComp"' + (snd.compress ? ' checked' : '') + '> Compression (levels dialogue)</label></div>';
+
+    const id = c.id;
+    $('#snType').addEventListener('change', (e) => {
+      AVP.pushUndo();
+      AVP.applySoundPreset(AVP.findClip(id), e.target.value);
+      AVP.refresh();
+    });
+    $('#snOn').addEventListener('change', (e) => {
+      AVP.pushUndo();
+      setSoundField(id, { enabled: e.target.checked });
+      AVP.refresh();
+    });
+    $('#snAuto').addEventListener('change', (e) => {
+      AVP.pushUndo();
+      setSoundField(id, { autoMatch: e.target.checked });
+      AVP.refresh();
+    });
+    $('#snComp').addEventListener('change', (e) => {
+      AVP.pushUndo();
+      setSoundField(id, { compress: e.target.checked });
+      AVP.refresh();
+    });
+    const slider = (sel, key, unit) => {
+      const el = $(sel);
+      el.addEventListener('pointerdown', () => AVP.pushUndo());
+      el.addEventListener('input', () => {
+        setSoundField(id, { [key]: +el.value });
+        el.parentElement.querySelector('output').textContent = el.value + unit;
+      });
+    };
+    slider('#snTarget', 'target', ' dB');
+    slider('#snLow', 'lowCut', ' Hz');
+    slider('#snPres', 'presence', ' dB');
+  }
+
+  /* ---------- Audio Clip Mixer ---------- */
+
+  function mixerStrip(id) {
+    const tr = S.tracks[id];
+    const db = tr.volume || 0;
+    return (
+      '<div class="mix-strip">' +
+      '<div class="mix-name' + (tr.solo ? ' soloing' : '') + '">' + id + '</div>' +
+      '<div class="mix-meter"><canvas data-mixmeter="' + id + '"></canvas></div>' +
+      '<input type="range" class="mix-fader" data-fader="' + id + '" min="-60" max="12" step="0.5" value="' + db + '" title="Track volume">' +
+      '<div class="mix-db" data-dbfor="' + id + '">' + db.toFixed(1) + ' dB</div>' +
+      '<div class="mix-btns"><button class="tl-toggle mute' + (tr.muted ? ' on' : '') + '" data-mmute="' + id + '" title="Mute">M</button>' +
+      '<button class="tl-toggle solo' + (tr.solo ? ' on' : '') + '" data-msolo="' + id + '" title="Solo">S</button></div>' +
+      '</div>'
+    );
+  }
+
+  function renderMixer() {
+    const body = $('#mixerBody');
+    if (!body) return;
+    const audio = S.trackOrder.filter((id) => S.tracks[id] && S.tracks[id].kind === 'audio');
+    body.innerHTML =
+      '<div class="mix-row">' +
+      audio.map(mixerStrip).join('') +
+      '<div class="mix-strip master"><div class="mix-name">Master</div>' +
+      '<div class="mix-meter"><canvas data-mixmeter="master"></canvas></div>' +
+      '<div class="mix-db">0.0 dB</div></div></div>' +
+      '<div class="fx-note">Track faders set each track level. M mutes a track and S solos it; while any track is soloed, the others are silent.</div>';
+
+    body.querySelectorAll('.mix-fader').forEach((inp) => {
+      const id = inp.dataset.fader;
+      inp.addEventListener('pointerdown', () => AVP.pushUndo());
+      inp.addEventListener('input', () => {
+        S.tracks[id].volume = +inp.value;
+        const label = body.querySelector('[data-dbfor="' + id + '"]');
+        if (label) label.textContent = (+inp.value).toFixed(1) + ' dB';
+      });
+    });
+    body.querySelectorAll('[data-mmute]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const tr = S.tracks[b.dataset.mmute];
+        AVP.pushUndo();
+        tr.muted = !tr.muted;
+        AVP.refresh();
+      })
+    );
+    body.querySelectorAll('[data-msolo]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const tr = S.tracks[b.dataset.msolo];
+        AVP.pushUndo();
+        tr.solo = !tr.solo;
+        AVP.refresh();
+      })
+    );
+  }
+
   // Refreshes the side lists that depend on the project (markers, metadata).
   function renderSide() {
     if (S.leftTab === 'markers') renderMarkers();
     if (S.rightTab === 'metadata') renderInfo();
+    if (S.rightTab === 'lumetri') renderLumetri();
+    if (S.rightTab === 'sound') renderSound();
+    if (S.rightTab === 'mixer') renderMixer();
   }
 
   function init() {
@@ -542,6 +761,9 @@
     renderLibrary,
     renderMarkers,
     renderInfo,
+    renderLumetri,
+    renderSound,
+    renderMixer,
     setPanel,
     readParam,
   };

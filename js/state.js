@@ -8,15 +8,15 @@
   const AVP = (window.AVP = window.AVP || {});
 
   AVP.APP_NAME = 'AhPah Video Pro';
-  AVP.VERSION = '1.2.0';
+  AVP.VERSION = '1.3.0';
   AVP.EPS = 1e-4;
 
   /* ---------- tracks ---------- */
 
   AVP.newTrackSet = function () {
     const tracks = {};
-    ['V1', 'V2', 'V3'].forEach((id) => (tracks[id] = { id, kind: 'video', hidden: false, locked: false }));
-    ['A1', 'A2', 'A3'].forEach((id) => (tracks[id] = { id, kind: 'audio', muted: false, solo: false, locked: false }));
+    ['V1', 'V2', 'V3'].forEach((id) => (tracks[id] = { id, kind: 'video', hidden: false, locked: false, volume: 0 }));
+    ['A1', 'A2', 'A3'].forEach((id) => (tracks[id] = { id, kind: 'audio', muted: false, solo: false, locked: false, volume: 0 }));
     return { tracks, order: ['V3', 'V2', 'V1', 'A1', 'A2', 'A3'] };
   };
 

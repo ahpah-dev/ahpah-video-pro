@@ -101,6 +101,23 @@
         { k: 'bottom', label: 'Bottom', min: 0, max: 49, def: 0, unit: '%' },
       ],
     },
+    lumetri: {
+      name: 'Lumetri Color',
+      cat: 'Color',
+      params: [
+        { k: 'exposure', label: 'Exposure', min: -5, max: 5, def: 0, step: 0.1, unit: ' EV' },
+        { k: 'contrast', label: 'Contrast', min: -100, max: 100, def: 0 },
+        { k: 'highlights', label: 'Highlights', min: -100, max: 100, def: 0 },
+        { k: 'shadows', label: 'Shadows', min: -100, max: 100, def: 0 },
+        { k: 'whites', label: 'Whites', min: -100, max: 100, def: 0 },
+        { k: 'blacks', label: 'Blacks', min: -100, max: 100, def: 0 },
+        { k: 'saturation', label: 'Saturation', min: 0, max: 200, def: 100, unit: '%' },
+        { k: 'temperature', label: 'Temperature', min: -100, max: 100, def: 0 },
+        { k: 'tint', label: 'Tint', min: -100, max: 100, def: 0 },
+        { k: 'vibrance', label: 'Vibrance', min: -100, max: 100, def: 0 },
+        { k: 'fade', label: 'Faded film', min: 0, max: 100, def: 0, unit: '%' },
+      ],
+    },
     flip: {
       name: 'Flip',
       cat: 'Transform',
@@ -486,6 +503,16 @@
           if (a) parts.push(`invert(${(a / 100).toFixed(3)})`);
           break;
         }
+        case 'lumetri': {
+          if (AVP.gpuOk) break; // the shader does the work
+          const e = P('exposure');
+          const ct = P('contrast');
+          const sat = P('saturation');
+          if (e) parts.push(`brightness(${Math.pow(2, e).toFixed(3)})`);
+          if (ct) parts.push(`contrast(${(1 + ct / 100).toFixed(3)})`);
+          if (sat !== 100) parts.push(`saturate(${(sat / 100).toFixed(3)})`);
+          break;
+        }
         case 'blur': {
           const r = P('radius');
           if (r > 0) parts.push(`blur(${r.toFixed(2)}px)`);
@@ -501,5 +528,29 @@
   // Transition types that can sit on a clip on this track kind.
   AVP.transitionsFor = function (kind) {
     return Object.keys(AVP.TRANSITIONS).filter((k) => (kind === 'audio' ? AVP.TRANSITIONS[k].audio : !AVP.TRANSITIONS[k].audio));
+  };
+  /* ---------- Essential Sound ---------- */
+
+  // Each audio type sets a starting point. Values are in the clip's sound settings.
+  AVP.SOUND_PRESETS = {
+    dialogue: { label: 'Dialogue', lowCut: 90, presence: 4, compress: true, target: -18 },
+    music: { label: 'Music', lowCut: 40, presence: 0, compress: false, target: -22 },
+    sfx: { label: 'Sound Effects', lowCut: 60, presence: 2, compress: false, target: -16 },
+    ambience: { label: 'Ambience', lowCut: 50, presence: -2, compress: false, target: -26 },
+  };
+
+  // Settings for a clip's sound. Clips without any change get neutral settings.
+  AVP.soundOf = function (c) {
+    return Object.assign(
+      { type: 'dialogue', enabled: true, autoMatch: false, lowCut: 20, presence: 0, compress: false, target: -18 },
+      c.sound || {}
+    );
+  };
+
+  // Applies a preset, keeping the enabled and loudness-match choices.
+  AVP.applySoundPreset = function (c, type) {
+    const p = AVP.SOUND_PRESETS[type] || AVP.SOUND_PRESETS.dialogue;
+    const cur = AVP.soundOf(c);
+    c.sound = Object.assign({}, cur, { type, lowCut: p.lowCut, presence: p.presence, compress: p.compress, target: p.target });
   };
 })();

@@ -872,3 +872,46 @@ kbd {
 .meter-label { color: var(--muted); font-size: 10px; }
 
 .layout.ws-audio .meters { width: 60px; flex-basis: 60px; }
+
+/* ---------- Lumetri, Essential Sound and Audio Clip Mixer ---------- */
+
+.ptabs { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.ptabs::-webkit-scrollbar { display: none; }
+.ptab { flex: 0 0 auto; }
+
+.mix-row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding: 8px 6px 4px;
+  overflow-x: auto;
+  min-height: 0;
+}
+.mix-strip {
+  flex: 0 0 66px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 4px;
+  background: #2a2a2a;
+  border: 1px solid #353535;
+}
+.mix-strip.master { border-color: #4a4a4a; background: #303030; }
+.mix-name { font-weight: 700; font-size: 11px; color: var(--text-hi); }
+.mix-name.soloing { color: #f0c75e; }
+.mix-meter { width: 100%; height: 150px; display: flex; justify-content: center; }
+.mix-meter canvas { width: 16px; height: 100%; background: #111; }
+.mix-fader {
+  -webkit-appearance: slider-vertical;
+  appearance: auto;
+  width: 22px;
+  height: 130px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.mix-db { font-family: Consolas, monospace; font-size: 10px; color: var(--tc); }
+.mix-btns { display: flex; gap: 3px; }
+.mix-btns .tl-toggle { width: 22px; height: 20px; border: 1px solid #3c3c3c; font-size: 10px; }
+.mix-btns .tl-toggle.solo.on { color: #f0c75e; }
+.mix-btns .tl-toggle.mute.on { color: var(--err); }
