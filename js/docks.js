@@ -161,7 +161,7 @@
       const panel = $(GROUPS[g].panel);
       if (!panel || !panel.contains(el)) continue;
       const strip = panel.querySelector(':scope > .ptabs');
-      const tabs = Array.from(strip.children).filter((b) => b !== drag.btn);
+      const tabs = Array.from(strip.children).filter((b) => b.classList.contains('ptab') && b !== drag.btn);
       const sr = strip.getBoundingClientRect();
       if (y >= sr.top - 6 && y <= sr.bottom + 6) {
         let index = tabs.length;

@@ -91,9 +91,11 @@
     const b = box();
     if (b.w <= 0 || b.h <= 0) return;
     const px = current.cols.map((f) => f * b.w);
-    const top = current.top * b.h;
+    const panels = current.top * b.h; // height of the row of panels
+    const tl = b.h - panels; // height of the timeline row
+    const row1 = timelineFirst ? tl : panels;
     layoutEl.style.gridTemplateColumns = px.map((v) => v.toFixed(1) + 'px').join(' ');
-    layoutEl.style.gridTemplateRows = top.toFixed(1) + 'px minmax(0, 1fr)';
+    layoutEl.style.gridTemplateRows = row1.toFixed(1) + 'px minmax(0, 1fr)';
 
     let x = PAD;
     for (let i = 0; i < 3; i++) {
@@ -101,14 +103,21 @@
       const centre = x + GAP / 2;
       const s = splits.v[i];
       s.style.left = centre - HIT / 2 + 'px';
-      s.style.top = PAD + 'px';
-      s.style.height = top + 'px';
+      s.style.top = (timelineFirst ? PAD + tl + GAP : PAD) + 'px';
+      s.style.height = panels + 'px';
       x += GAP;
     }
-    const y = PAD + top + GAP / 2;
+    const y = PAD + row1 + GAP / 2;
     splits.h.style.top = y - HIT / 2 + 'px';
     splits.h.style.left = PAD + 'px';
     splits.h.style.width = b.w + 3 * GAP + 'px';
+  }
+
+  // True when the timeline is the top row. Set by js/monitor-dock.js; the sizes stay the same.
+  let timelineFirst = false;
+  function setTimelineFirst(first) {
+    timelineFirst = !!first;
+    apply();
   }
 
   function startDrag(kind, idx, e) {
@@ -142,8 +151,10 @@
       cols[i + 1] = c0 - dx;
       current = { cols: cols.map((v) => v / b.w), top: current.top };
     } else {
+      // drag.top is the panel row's height when the drag started. With the timeline on top, dragging down shrinks the panels.
       const t0 = drag.top;
-      const dy = Math.max(MIN_TOP - t0, Math.min(b.h - MIN_TL - t0, e.clientY - drag.y0));
+      const sign = timelineFirst ? -1 : 1;
+      const dy = Math.max(MIN_TOP - t0, Math.min(b.h - MIN_TL - t0, sign * (e.clientY - drag.y0)));
       current = { cols: current.cols, top: (t0 + dy) / b.h };
     }
     apply();
@@ -189,6 +200,7 @@
     );
     strip.addEventListener('pointerdown', (e) => {
       // A left-drag on a tab moves the tab (js/docks.js). Drag empty strip space or use the middle button to scroll.
+      if (e.target.closest('.panel-grip')) return;
       if (e.button === 0 && e.target.closest('.ptab')) return;
       if ((e.button !== 0 && e.button !== 1) || strip.scrollWidth <= strip.clientWidth) return;
       delete strip.dataset.dragged;
@@ -232,5 +244,5 @@
     activate('editing');
   }
 
-  AVP.layout = { init, activate, apply, presetFor, PRESETS };
+  AVP.layout = { init, activate, apply, presetFor, PRESETS, setTimelineFirst };
 })();

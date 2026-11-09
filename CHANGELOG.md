@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.13.0
+
+### Moving every panel
+- The Project and Effect Controls groups move by a grip (the dotted handle) at the start of their
+  tab strip. Dragging tabs still reorders and moves tabs as before.
+- The timeline moves by the grip on its header. Drop it on the top or bottom edge of the window.
+  The splitters follow it, so resizing still works with the timeline on top.
+- The Source and Program monitors, the groups and the timeline share one arrangement in the top row.
+  A panel dropped in the outer third of another goes beside it, and in the middle the two swap.
+- The arrangement is saved and comes back after a reload. Window > Reset Panel Layout and Reset
+  Monitor Positions restore the defaults.
+
 ## 1.12.0
 
 ### Moving the monitors
