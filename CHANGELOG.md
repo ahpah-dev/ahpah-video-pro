@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.11.0
+
+### Captions
+- A Captions workspace and a Captions panel in the left group.
+- Captions are text clips on a new CC track above the video, so adding a caption never overwrites
+  the picture underneath. Older projects get the track the first time a caption is added.
+- New caption at the playhead. Each caption in the panel has an editable text box, start and end
+  times, and a delete button. Click a caption to go to its place on the timeline.
+- Style for captions: font, size, box opacity and position (bottom, middle or top). Apply it to all
+  captions at once.
+- Import SRT subtitle files and export the captions as SRT. Import reads BOM, Windows line endings,
+  and times with a dot or a comma before the milliseconds. Imported captions replace any caption they
+  overlap.
+- Graphics menu: New Caption at Playhead, Import Captions (SRT), Export Captions (SRT), Captions panel.
+- The Captions tab can be dragged between panel groups like the others. A saved tab layout from an
+  earlier version keeps its order and gets the Captions tab added.
+
+### Not included
+- Automatic speech-to-text. Captions are typed or imported. Automatic transcription needs a speech
+  model that does not run in the browser here.
+
 ## 1.10.0
 
 ### Keyframes

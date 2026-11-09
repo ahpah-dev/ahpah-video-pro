@@ -744,6 +744,7 @@
     if (!lane || !m) return;
     const trackId = lane.dataset.track;
     const kind = S.tracks[trackId].kind;
+    if (S.tracks[trackId].caption) return AVP.toast('Captions are added in the Captions panel', 'warn');
     const t = Math.max(0, AVP.snapFrame((e.clientX - lane.getBoundingClientRect().left) / S.zoom));
     const mode = e.shiftKey ? 'insert' : 'overwrite';
     if (m.type === 'audio' && kind === 'audio') {

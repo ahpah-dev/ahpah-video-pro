@@ -1,13 +1,13 @@
 {
   "name": "ahpah-video-pro",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "description": "AhPah Video Pro: a free, browser-based video editor with a Premiere Pro style layout.",
   "private": false,
   "license": "Unlicense",
   "author": "AhPah",
   "main": "index.html",
   "scripts": {
-    "test": "node tests/edits-test.js && node tests/grading-test.js && node tests/color-test.js && node tests/audio-test.js && node tests/effects-test.js",
+    "test": "node tests/edits-test.js && node tests/grading-test.js && node tests/color-test.js && node tests/audio-test.js && node tests/effects-test.js && node tests/captions-test.js",
     "check": "node --check js/state.js && node --check js/edits.js && node --check js/bin.js && node --check js/timeline.js && node --check js/monitor.js && node --check js/main.js"
   },
   "keywords": [

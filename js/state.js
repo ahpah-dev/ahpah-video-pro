@@ -8,7 +8,7 @@
   const AVP = (window.AVP = window.AVP || {});
 
   AVP.APP_NAME = 'AhPah Video Pro';
-  AVP.VERSION = '1.10.0';
+  AVP.VERSION = '1.11.0';
   AVP.EPS = 1e-4;
 
   /* ---------- tracks ---------- */
@@ -17,7 +17,9 @@
     const tracks = {};
     ['V1', 'V2', 'V3'].forEach((id) => (tracks[id] = { id, kind: 'video', hidden: false, locked: false, volume: 0, pan: 0, send: 0, keys: {} }));
     ['A1', 'A2', 'A3'].forEach((id) => (tracks[id] = { id, kind: 'audio', muted: false, solo: false, locked: false, volume: 0, pan: 0, send: 0, keys: {} }));
-    return { tracks, order: ['V3', 'V2', 'V1', 'A1', 'A2', 'A3'] };
+    // CC holds caption clips. It sits above the video, so captions never overwrite the picture.
+    tracks.CC = { id: 'CC', kind: 'video', caption: true, hidden: false, locked: false, volume: 0, pan: 0, send: 0, keys: {} };
+    return { tracks, order: ['CC', 'V3', 'V2', 'V1', 'A1', 'A2', 'A3'] };
   };
 
   const initialTracks = AVP.newTrackSet();

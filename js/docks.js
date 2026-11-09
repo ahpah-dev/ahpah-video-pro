@@ -16,8 +16,8 @@
     left: {
       panel: 'leftPanel',
       attr: 'ptab',
-      tabs: ['project', 'effects', 'markers', 'graphics'],
-      panes: { project: 'paneProject', effects: 'paneEffects', markers: 'paneMarkers', graphics: 'paneGraphics' },
+      tabs: ['project', 'effects', 'markers', 'graphics', 'captions'],
+      panes: { project: 'paneProject', effects: 'paneEffects', markers: 'paneMarkers', graphics: 'paneGraphics', captions: 'paneCaptions' },
     },
     right: {
       panel: 'fxPanel',
@@ -41,17 +41,33 @@
     return { left: GROUPS.left.tabs.slice(), right: GROUPS.right.tabs.slice() };
   }
 
-  // Saved arrangements are checked: each tab must appear exactly once in a known group.
-  function valid(a) {
-    if (!a || !Array.isArray(a.left) || !Array.isArray(a.right)) return false;
-    const seen = [].concat(a.left, a.right);
-    return seen.length === ALL_TABS.length && ALL_TABS.every((t) => seen.indexOf(t) >= 0);
+  // A saved arrangement may predate newer tabs. Keep its order, drop unknown tabs, and add any missing
+  // tab at the end of its default group.
+  function normalize(a) {
+    if (!a || !Array.isArray(a.left) || !Array.isArray(a.right)) return defaultArrangement();
+    const out = { left: [], right: [] };
+    const seen = new Set();
+    ['left', 'right'].forEach((g) =>
+      a[g].forEach((t) => {
+        if (GROUP_OF[t] === g && !seen.has(t)) {
+          seen.add(t);
+          out[g].push(t);
+        }
+      })
+    );
+    ALL_TABS.forEach((t) => {
+      if (!seen.has(t)) {
+        seen.add(t);
+        out[GROUP_OF[t]].push(t);
+      }
+    });
+    return out;
   }
 
   function load() {
     try {
       const a = JSON.parse(localStorage.getItem(KEY));
-      arrangement = valid(a) ? a : defaultArrangement();
+      arrangement = normalize(a);
     } catch (e) {
       arrangement = defaultArrangement();
     }

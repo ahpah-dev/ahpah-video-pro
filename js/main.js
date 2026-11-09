@@ -48,6 +48,7 @@
   function refreshPanels() {
     AVP.panels.renderControls();
     AVP.panels.renderSide();
+    if (S.leftTab === 'captions') AVP.panels.renderCaptions();
     AVP.monitor.sync();
   }
 
@@ -382,6 +383,10 @@
     panelMarkers: () => AVP.panels.setPanel('markers'),
     panelMetadata: () => AVP.panels.setPanel('metadata'),
     panelGraphics: () => AVP.panels.setPanel('graphics'),
+    panelCaptions: () => AVP.panels.setPanel('captions'),
+    newCaption: () => AVP.captions.newAtPlayhead(),
+    importCaptions: () => AVP.captions.importPicker(),
+    exportCaptions: () => AVP.captions.exportSRT(),
     newRectangle: () => AVP.edit.placeShape({ track: S.target.video, start: S.playhead, type: 'rect', mode: 'overwrite' }),
     newEllipse: () => AVP.edit.placeShape({ track: S.target.video, start: S.playhead, type: 'ellipse', mode: 'overwrite' }),
     panelLumetri: () => AVP.panels.setPanel('lumetri'),
@@ -485,6 +490,11 @@
         { label: 'New Rectangle', action: 'newRectangle' },
         { label: 'New Ellipse', action: 'newEllipse' },
         { label: 'Essential Graphics panel', action: 'panelGraphics' },
+        { sep: true },
+        { label: 'New Caption at Playhead', action: 'newCaption' },
+        { label: 'Import Captions (SRT)…', action: 'importCaptions' },
+        { label: 'Export Captions (SRT)…', action: 'exportCaptions' },
+        { label: 'Captions panel', action: 'panelCaptions' },
       ],
     },
     {
@@ -809,7 +819,7 @@
     effects: { name: 'Effects', layout: 'ws-effects', panel: 'effects', right: 'controls' },
     audio: { name: 'Audio', layout: 'ws-audio', panel: 'project', right: 'controls' },
     graphics: { name: 'Graphics', layout: '', panel: 'graphics', right: 'controls' },
-    captions: { name: 'Captions', available: false },
+    captions: { name: 'Captions', layout: '', panel: 'captions', right: 'controls' },
     libraries: { name: 'Libraries', available: false },
   };
 

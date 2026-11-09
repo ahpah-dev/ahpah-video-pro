@@ -1086,3 +1086,32 @@ body.dock-drag, body.dock-drag * { user-select: none; cursor: grabbing !importan
   z-index: 1;
   pointer-events: none;
 }
+
+/* Captions panel */
+.font-pick { min-width: 0; }
+.cap-row {
+  background: #2a2a2a;
+  border: 1px solid #353535;
+  padding: 6px 7px;
+  margin: 6px 0;
+  cursor: pointer;
+}
+.cap-row.sel { border-color: var(--pr-accent, #2d8ceb); box-shadow: inset 2px 0 0 var(--pr-accent, #2d8ceb); }
+.cap-row:hover { background: #303030; }
+.cap-times { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.cap-times .btn.tiny { margin-left: auto; width: 22px; padding: 0; }
+.cap-num { width: 70px; font-family: Consolas, monospace; font-size: 11px; color: var(--pr-value, #62b1ff); background: #141414; border: 1px solid #3a3a3a; border-radius: 2px; padding: 0 4px; height: 20px; }
+.cap-text {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 40px;
+  background: #1c1c1c;
+  color: #e6e6e6;
+  border: 1px solid #3a3a3a;
+  border-radius: 2px;
+  padding: 5px 6px;
+  font: 12px "Segoe UI", system-ui, sans-serif;
+  line-height: 1.4;
+}
+.cap-text:focus { outline: none; border-color: var(--pr-accent, #2d8ceb); }

@@ -624,13 +624,14 @@
   function setLeftTab(name) {
     S.leftTab = name;
     document.querySelectorAll('[data-ptab]').forEach((b) => b.classList.toggle('active', b.dataset.ptab === name));
-    const panes = { project: '#paneProject', effects: '#paneEffects', markers: '#paneMarkers', graphics: '#paneGraphics' };
+    const panes = { project: '#paneProject', effects: '#paneEffects', markers: '#paneMarkers', graphics: '#paneGraphics', captions: '#paneCaptions' };
     Object.keys(panes).forEach((k) => {
       const el = $(panes[k]);
       if (el) el.classList.toggle('hidden', k !== name);
     });
     if (name === 'markers') renderMarkers();
     if (name === 'graphics') renderGraphics();
+    if (name === 'captions') renderCaptions();
   }
 
   const RIGHT_PANES = { controls: '#fxBody', lumetri: '#lumetriBody', sound: '#soundBody', mixer: '#mixerBody', metadata: '#infoBody' };
@@ -651,6 +652,120 @@
     if (RIGHT_TABS.indexOf(name) >= 0) setRightTab(name);
     else setLeftTab(name);
     S.panel = name;
+  }
+
+  /* ---------- Captions ---------- */
+
+  // The Captions panel: a list of caption clips, each with its times and text, and the style for new captions.
+  function renderCaptions() {
+    const body = $('#captionsBody');
+    if (!body) return;
+    const list = AVP.captions.list();
+    const selected = new Set(S.selection);
+    const st = AVP.captionStyle;
+    const fontOpts = AVP.fontList()
+      .map((f) => `<option${f === st.font ? ' selected' : ''}>${esc(f)}</option>`)
+      .join('');
+    const posOpts = ['bottom', 'middle', 'top']
+      .map((p) => `<option value="${p}"${p === st.position ? ' selected' : ''}>${p[0].toUpperCase() + p.slice(1)}</option>`)
+      .join('');
+    const rows = list
+      .map(
+        (c) =>
+          `<div class="cap-row${selected.has(c.id) ? ' sel' : ''}" data-capid="${c.id}">` +
+          `<div class="cap-times">` +
+          `<input type="number" class="cap-num" step="0.1" min="0" data-capstart="${c.id}" value="${c.start.toFixed(2)}" title="Start, in seconds">` +
+          `<span class="muted">to</span>` +
+          `<input type="number" class="cap-num" step="0.1" min="0" data-capend="${c.id}" value="${(c.start + c.duration).toFixed(2)}" title="End, in seconds">` +
+          `<button class="btn tiny" data-capdel="${c.id}" title="Delete this caption">×</button></div>` +
+          `<textarea class="cap-text" rows="2" data-captext="${c.id}" spellcheck="true">${esc(c.text.text)}</textarea>` +
+          `</div>`
+      )
+      .join('');
+    body.innerHTML =
+      '<div class="fx-group"><div class="fx-title">Captions</div>' +
+      '<div class="graphic-buttons">' +
+      '<button class="btn" data-cap="new" title="Add a caption at the playhead">New caption</button>' +
+      '<button class="btn" data-cap="import" title="Import an SRT subtitle file">Import SRT…</button>' +
+      `<button class="btn" data-cap="export"${list.length ? '' : ' disabled'} title="Save the captions as an SRT file">Export SRT</button>` +
+      '</div>' +
+      '<div class="fx-note">Captions sit on the CC track above the video. Type to edit a caption. Click a caption to go to it.</div></div>' +
+      '<div class="fx-group"><div class="fx-title">Style for captions</div>' +
+      `<div class="fx-kv"><span>Font</span><select data-capstyle="font">${fontOpts}</select></div>` +
+      `<div class="fx-kv"><span>Size</span><input type="number" data-capstyle="size" value="${st.size}" min="8" max="300" step="2"></div>` +
+      `<div class="fx-kv"><span>Box opacity</span><input type="number" data-capstyle="bgOpacity" value="${st.bgOpacity}" min="0" max="100" step="5"></div>` +
+      `<div class="fx-kv"><span>Position</span><select data-capstyle="position">${posOpts}</select></div>` +
+      `<div class="graphic-buttons"><button class="btn" data-cap="restyle"${list.length ? '' : ' disabled'}>Apply style to all captions</button></div></div>` +
+      `<div class="fx-group"><div class="fx-title">${list.length} caption${list.length === 1 ? '' : 's'}</div>` +
+      (rows || '<div class="fx-note">No captions yet. Add one at the playhead, or import an SRT file.</div>') +
+      '</div>';
+    bindCaptions(body);
+  }
+
+  function bindCaptions(body) {
+    body.querySelectorAll('[data-cap]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const what = b.dataset.cap;
+        if (what === 'new') AVP.captions.newAtPlayhead();
+        else if (what === 'import') AVP.captions.importPicker();
+        else if (what === 'export') AVP.captions.exportSRT();
+        else if (what === 'restyle') AVP.captions.restyleAll();
+      })
+    );
+    body.querySelectorAll('[data-capstyle]').forEach((el) =>
+      el.addEventListener('change', () => {
+        const k = el.dataset.capstyle;
+        AVP.captionStyle[k] = el.type === 'number' ? parseFloat(el.value) || 0 : el.value;
+      })
+    );
+    // Text: one undo step per editing session; the timeline follows as you type.
+    body.querySelectorAll('[data-captext]').forEach((ta) => {
+      const id = ta.dataset.captext;
+      ta.addEventListener('focus', () => AVP.pushUndo());
+      ta.addEventListener('input', () => {
+        const c = AVP.findClip(id);
+        if (!c || !c.text) return;
+        c.text.text = ta.value;
+        AVP.timeline.render();
+        AVP.monitor.draw();
+      });
+    });
+    // Times: typing a start or end moves the caption and cuts back any caption it now covers.
+    body.querySelectorAll('[data-capstart], [data-capend]').forEach((inp) => {
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') inp.blur(); // Enter applies the time, as in the value boxes
+      });
+      inp.addEventListener('change', () => {
+        const id = inp.dataset.capstart || inp.dataset.capend;
+        const c = AVP.findClip(id);
+        if (!c) return;
+        const start = inp.dataset.capstart ? parseFloat(inp.value) : c.start;
+        const end = inp.dataset.capend ? parseFloat(inp.value) : c.start + c.duration;
+        if (!isFinite(start) || !isFinite(end)) return;
+        AVP.pushUndo();
+        AVP.captions.setTimes(id, start, end);
+        AVP.refresh();
+      });
+    });
+    body.querySelectorAll('[data-capdel]').forEach((b) =>
+      b.addEventListener('click', () => {
+        AVP.pushUndo();
+        S.clips = S.clips.filter((c) => c.id !== b.dataset.capdel);
+        AVP.select([], false);
+        AVP.refresh();
+      })
+    );
+    // Clicking a caption's row (not its fields) selects it and moves the playhead to its start.
+    body.querySelectorAll('.cap-row').forEach((row) =>
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('input, textarea, button')) return;
+        const c = AVP.findClip(row.dataset.capid);
+        if (!c) return;
+        AVP.select([c.id], false);
+        AVP.monitor.goTo(c.start);
+        AVP.refresh();
+      })
+    );
   }
 
   /* ---------- markers list ---------- */
@@ -1164,6 +1279,7 @@
     renderSide,
     renderLibrary,
     renderMarkers,
+    renderCaptions,
     renderGraphics,
     renderInfo,
     renderLumetri,

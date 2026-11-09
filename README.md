@@ -51,7 +51,8 @@ it, sell it or bundle it however you like.
   the frame size, quality and range (whole sequence or work area). Export a single frame
   as PNG.
 - **Sequence settings**: frame size (HD, 4K, vertical, square) and frame rate.
-- **Workspaces**: Editing, Assembly, Effects, Color, Audio and Graphics layouts (the other workspace tabs are placeholders).
+- **Workspaces**: Editing, Assembly, Effects, Color, Audio, Graphics and Captions layouts (the other workspace tabs are placeholders).
+- **Captions**: caption clips on the CC track above the video, edited in the Captions panel (text, start and end, style). Import and export SRT subtitle files. Captions are typed or imported; speech is not transcribed automatically.
 - **Panel tabs**: drag a tab to reorder it or to move it to the other panel group. Window > Reset Panel Layout restores the default.
 - **Typed values**: type into the box beside a slider (Effect Controls and Lumetri) and press Enter.
 - **Panel sizes**: drag the gaps between the panels to resize them, and drag the gap above the timeline
