@@ -255,6 +255,12 @@
     return Math.max(0, (AVP.propAt(c, 'volume', t) / 100) * AVP.audioRamp(R, t) * autoGain(c) * gateFactor(c, t) * duckFactor(c, t));
   }
 
+  // The gain a clip plays at at time t, exactly as the live mix uses it. Used by the offline export.
+  function clipGainAt(c, t) {
+    const list = S.clips.filter((o) => o.track === c.track).sort((a, b) => a.start - b.start);
+    return gainFor(c, AVP.roleWindows(c, list), t);
+  }
+
   function cleanupNodes() {
     if (!nodes.size) return;
     const alive = new Set(S.clips.map((c) => c.id));
@@ -294,6 +300,7 @@
   // Keeps media elements in step with the playhead.
   let cleanedVersion = -1;
   function sync() {
+    if (AVP.offlineExport && AVP.offlineExport.active()) return; // an offline export moves the media itself
     syncBuses();
     if (cleanedVersion !== AVP.dataVersion) {
       cleanupNodes();
@@ -740,6 +747,16 @@
       return AVP.toast('This browser cannot record video. Try Chrome, Edge or Firefox.', 'error');
     }
     opts = Object.assign({ format: 'webm', width: S.seqWidth, height: S.seqHeight, bitrate: 8, range: 'sequence' }, opts || {});
+    if (opts.format === 'mp4' && AVP.offlineExport && AVP.offlineExport.supported()) {
+      let s0 = 0;
+      let s1 = end;
+      if (opts.range === 'work') {
+        s0 = S.workIn != null ? Math.max(0, S.workIn) : 0;
+        s1 = S.workOut != null ? Math.min(end, S.workOut) : end;
+        if (s1 - s0 < 0.1) return AVP.toast('The work area is empty', 'warn');
+      }
+      return AVP.offlineExport.run({ start: s0, stop: s1, width: opts.width, height: opts.height, bitrate: opts.bitrate, fps: S.fps });
+    }
     const mime = pickMime(opts.format);
     if (!mime) return AVP.toast('This browser cannot record ' + opts.format.toUpperCase() + '. Choose WebM.', 'error');
 
@@ -851,6 +868,7 @@
   }
 
   function finishExport() {
+    if (AVP.offlineExport && AVP.offlineExport.active()) return AVP.offlineExport.cancel();
     if (!S.exporting) return;
     S.exporting = false;
     if (exportTicker) {
@@ -939,6 +957,8 @@
     getSource,
     audioContext: () => audioCtx,
     trackParam: (id, key, t) => trackParam(id, key, t),
+    clipGainAt: (c, t) => clipGainAt(c, t),
+    exportCanvas: () => ({ canvas, ctx }),
     masterAnalyser: () => masterAnalyser,
     trackAnalyser: (id) => {
       const b = trackBus(id);

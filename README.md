@@ -90,9 +90,10 @@ Dragging a transition onto a cut shows where it will land:
 - **Speed**: change a clip's speed from 10% to 1600% (Ctrl+R).
 - **Playback**: play, pause, reverse, frame stepping and jumps to edit points, at a
   choice of preview resolution (full, half or quarter). Drawing is paced to the display.
-- **Export**: MP4 (H.264 with AAC) is the default where the browser can record it, otherwise WebM
-  (VP9 or VP8 with Opus). Choose the frame size, quality and range (whole sequence or work area).
-  Export a single frame as PNG.
+- **Export**: MP4 (H.264 with AAC) is the default. It is drawn frame by frame and encoded with WebCodecs,
+  so it never stutters or freezes at the start; it takes as long as it needs and can be cancelled with
+  Esc. WebM (VP9 or VP8 with Opus) runs in real time. Choose the frame size, quality and range (whole
+  sequence or work area). Export a single frame as PNG.
 - **Sequence settings**: frame size (HD, 4K, vertical, square) and frame rate.
 - **Workspaces**: Editing, Assembly, Effects, Color, Audio, Graphics and Captions layouts (the other workspace tabs are placeholders).
 - **Captions**: caption clips on the CC track above the video, edited in the Captions panel (text, start and end, style). Import and export SRT subtitle files. Captions are typed or imported; speech is not transcribed automatically.
@@ -172,10 +173,9 @@ MOV and MKV files open only where the browser can decode them.
 
 This is an early, browser-based editor. Known limits:
 
-- Export runs in real time: a 10-minute sequence takes about 10 minutes. Each frame is drawn
-  once and recorded, and frames wait for video that is still loading, so the picture stays in step
-  with the sound. It keeps running if the window is in the background, but keep it open. If the
-  browser writes an MP4 with no video, the export is recorded again (up to three tries).
+- MP4 export needs WebCodecs (Chrome, Edge, and recent Safari). Without it, or for WebM, the export runs in
+  real time: a 10-minute sequence takes about 10 minutes, and a slow computer can stutter. Keep the tab
+  visible while a real-time export runs.
 - Lumetri uses its own display-space maths. It is close to Lumetri in use, but it is not
   Adobe's implementation, and it has no Vignette-in-Lumetri or Look presets.
 - Essential Sound loudness is measured per clip with BS.1770 K-weighting. Noise reduction is a
@@ -194,6 +194,8 @@ This is an early, browser-based editor. Known limits:
 
 ```text
 index.html           Application shell (panels, toolbar, dialogs)
+js/offline-export.js Frame-by-frame MP4 export (WebCodecs, offline sound)
+js/vendor/           Third-party code: mp4-muxer (MIT, see the licence file beside it)
 css/style.css        Dark editing theme
 js/state.js          Shared state, undo history, data version, helpers
 js/effects.js        Effect / transition / font definitions and timing maths (pure)

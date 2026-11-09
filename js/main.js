@@ -155,7 +155,7 @@
     const hasWork = S.workIn != null || S.workOut != null;
     AVP.dialog.form({
       title: 'Export video',
-      intro: 'Export runs in real time: a 10-minute sequence takes about 10 minutes. Keep this tab visible.',
+      intro: mp4 ? 'MP4 is drawn frame by frame, so it never stutters. It takes as long as it needs, and can be cancelled with Esc. WebM runs in real time: keep this tab visible.' : 'WebM runs in real time: a 10-minute sequence takes about 10 minutes. Keep this tab visible.',
       fields: [
         {
           k: 'format',

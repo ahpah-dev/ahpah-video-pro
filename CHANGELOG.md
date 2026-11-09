@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.22.0
+
+### MP4 export, frame by frame
+- MP4 export now draws each frame at its own pace instead of in real time. For each frame, every video
+  that is showing is moved to its exact moment and waited for, then the frame is encoded (H.264). The
+  export no longer depends on playback, so the picture no longer freezes at the start of a clip or
+  stutters on a slow computer. A slow computer just takes longer.
+- The sound is rendered offline, in 10-second chunks, with the same gain, fade, track, pan, reverb and
+  Essential Sound settings as the live mix, and encoded as AAC. Each chunk starts half a second early and
+  drops that lead-in, so the filters settle and there is no dip at the joins.
+- The file is written with mp4-muxer (MIT, in js/vendor). The output has a fast-start header, so it
+  begins playing straight away.
+- Esc cancels a frame-by-frame export; nothing is saved. Progress shows in the export overlay.
+- The export dialog explains the two formats: MP4 is drawn frame by frame, WebM runs in real time.
+- WebM and browsers without WebCodecs still use the real-time export, with the late-frame warning.
+
+### Checked
+- A real video export started with no frozen frames: the longest still run at the start is 0.1 seconds,
+  down from up to 0.8 seconds before.
+- A 20-second test with five flashes and clicks: the sound and picture agree to within one frame, with no
+  drift, and the click at each 10-second join is kept.
+
 ## 1.21.0
 
 ### Export: stutter reporting
