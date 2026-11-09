@@ -287,7 +287,7 @@
     /* ---------- transitions ---------- */
 
     // Applies a transition to a clip edge. Video transitions also crossfade the partner audio.
-    applyTransition(clipId, type, edge) {
+    applyTransition(clipId, type, edge, opts) {
       const c = AVP.findClip(clipId);
       const def = AVP.TRANSITIONS[type];
       if (!c || !def) return false;
@@ -296,7 +296,7 @@
         AVP.toast(def.audio ? 'Audio fades go on audio clips' : 'Video transitions go on video clips');
         return false;
       }
-      AVP.pushUndo();
+      if (!(opts && opts.quiet)) AVP.pushUndo();
       const apply = (clip, where, tType) => {
         const spec = { type: tType, duration: def.dur };
         if (where === 'start') clip.transIn = spec;
@@ -312,7 +312,7 @@
         // The partner audio gets a matching constant-gain fade so sound does not click.
         AVP.partners(c).forEach((p) => apply(p, edge, 'audio-fade'));
       }
-      AVP.refresh();
+      if (!(opts && opts.quiet)) AVP.refresh();
       return true;
     },
 
@@ -356,6 +356,81 @@
       });
       list.forEach((c) => E.carveRange(c.track, c.start, c.start + c.duration, keep));
       AVP.refresh();
+    },
+
+    /* ---------- markers on a clip ---------- */
+
+    // Sequence markers strictly inside a clip, in time order.
+    markersOnClip(c) {
+      const end = c.start + c.duration;
+      return S.markers.map((m) => m.t).filter((t) => t > c.start + EPS && t < end - EPS).sort((a, b) => a - b);
+    },
+
+    // Cuts each clip in ids at every marker inside it (linked partners are cut too). Returns the
+    // right-hand pieces the cuts made. Does not record undo: callers do.
+    cutAtMarkers(ids) {
+      const pieces = [];
+      ids.map(AVP.findClip).filter(Boolean).forEach((c0) => {
+        const track = c0.track;
+        if (S.tracks[track].locked) return;
+        E.markersOnClip(c0).forEach((t) => {
+          const cur = S.clips.find((c) => c.track === track && c.start < t - EPS && c.start + c.duration > t + EPS);
+          if (cur) pieces.push(E.splitClip(cur, t));
+        });
+      });
+      return pieces;
+    },
+
+    // Split at every marker on the selected clips. One undo step.
+    splitAtMarkers(ids) {
+      const has = ids.map(AVP.findClip).filter(Boolean).some((c) => E.markersOnClip(c).length);
+      if (!has) {
+        AVP.toast('No markers inside the selected clip', 'warn');
+        return 0;
+      }
+      AVP.pushUndo();
+      const pieces = E.cutAtMarkers(ids);
+      AVP.refresh();
+      AVP.toast(`Split at ${pieces.length} marker${pieces.length === 1 ? '' : 's'}`, 'ok');
+      return pieces.length;
+    },
+
+    // Cuts at every marker and puts a transition at each cut (a dissolve on video, a fade on audio).
+    transitionAtMarkers(ids, type) {
+      const has = ids.map(AVP.findClip).filter(Boolean).some((c) => E.markersOnClip(c).length);
+      if (!has) {
+        AVP.toast('No markers inside the selected clip', 'warn');
+        return 0;
+      }
+      AVP.pushUndo();
+      const pieces = E.cutAtMarkers(ids);
+      pieces.forEach((p) => {
+        const audio = AVP.trackKind(p.track) === 'audio';
+        E.applyTransition(p.id, audio ? 'audio-fade' : type || 'dissolve', 'start', { quiet: true });
+      });
+      AVP.refresh();
+      AVP.toast(`Added a transition at ${pieces.length} marker${pieces.length === 1 ? '' : 's'}`, 'ok');
+      return pieces.length;
+    },
+
+    // Removes the markers that lie inside the selected clips. One undo step.
+    removeMarkersOn(ids) {
+      const hit = new Set();
+      ids.map(AVP.findClip).filter(Boolean).forEach((c) => {
+        const end = c.start + c.duration;
+        S.markers.forEach((m) => {
+          if (m.t > c.start + EPS && m.t < end - EPS) hit.add(m.id);
+        });
+      });
+      if (!hit.size) {
+        AVP.toast('No markers inside the selected clip', 'warn');
+        return 0;
+      }
+      AVP.pushUndo();
+      S.markers = S.markers.filter((m) => !hit.has(m.id));
+      AVP.refresh();
+      AVP.toast(`Removed ${hit.size} marker${hit.size === 1 ? '' : 's'}`, 'ok');
+      return hit.size;
     },
 
     toggleEnabled(ids) {

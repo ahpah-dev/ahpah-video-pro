@@ -107,6 +107,40 @@ test('a speed change moves the linked audio with its video', () => {
   assert.ok(Math.abs(a.duration - 5) < EPS, 'and is the same length as the video');
 });
 
+test('split at each marker cuts the clip at every marker inside it, and its linked audio too', () => {
+  reset([clip('V1', 0, 10, 'L', 0), clip('A1', 0, 10, 'L', 0)]);
+  S.markers = [{ id: 'm1', t: 2 }, { id: 'm2', t: 5 }, { id: 'm3', t: 7 }, { id: 'm4', t: 12 }];
+  const n = E.splitAtMarkers([S.clips[0].id]);
+  assert.strictEqual(n, 3, 'three cuts; the marker past the clip end is ignored');
+  assert.strictEqual(describe(), 'A1 0-2 | A1 2-5 | A1 5-7 | A1 7-10 | V1 0-2 | V1 2-5 | V1 5-7 | V1 7-10');
+  S.markers = [];
+});
+
+test('markers on the edge of a clip do not cut it', () => {
+  reset([clip('V1', 0, 10, null, 0)]);
+  S.markers = [{ id: 'm1', t: 0 }, { id: 'm2', t: 10 }];
+  assert.strictEqual(E.splitAtMarkers([S.clips[0].id]), 0);
+  assert.strictEqual(describe(), 'V1 0-10');
+  S.markers = [];
+});
+
+test('a transition goes on each piece cut at a marker', () => {
+  reset([clip('V1', 0, 10, null, 0)]);
+  S.markers = [{ id: 'm1', t: 4 }, { id: 'm2', t: 6 }];
+  E.transitionAtMarkers([S.clips[0].id], 'dissolve');
+  const starts = S.clips.filter((c) => c.track === 'V1' && c.transIn).map((c) => c.start).sort((a, b) => a - b);
+  assert.deepStrictEqual(starts, [4, 6], 'the pieces starting at each marker have a dissolve');
+  S.markers = [];
+});
+
+test('removing markers on a clip removes only those inside it', () => {
+  reset([clip('V1', 2, 4, null, 0)]);
+  S.markers = [{ id: 'in1', t: 3 }, { id: 'edge', t: 2 }, { id: 'out', t: 9 }];
+  assert.strictEqual(E.removeMarkersOn([S.clips[0].id]), 1);
+  assert.deepStrictEqual(S.markers.map((m) => m.id).sort(), ['edge', 'out']);
+  S.markers = [];
+});
+
 test('partners are clips with the same link that overlap in time', () => {
   reset([clip('V1', 0, 4, 'L', 0), clip('A1', 0, 4, 'L', 0), clip('A1', 6, 2, 'L', 0), clip('A2', 0, 4, null, 0)]);
   const v = S.clips[0];

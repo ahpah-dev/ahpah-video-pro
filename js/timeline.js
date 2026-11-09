@@ -860,6 +860,8 @@
     const isVideo = kind === 'video';
     const hasPartner = AVP.partners(c).length > 0;
     const ids = S.selection.slice();
+    // Marker actions apply to the selection when this clip is part of it, otherwise to this clip alone.
+    const targets = ids.includes(c.id) ? ids : [c.id];
     const many = ids.length > 1;
     const hasStart = !!c.transIn;
     const hasEnd = !!(S.clips.find((o) => o.track === c.track && Math.abs(o.start - AVP.clipEnd(c)) < EPS) || {}).transIn || !!c.transOut;
@@ -876,6 +878,11 @@
       { label: c.enabled ? 'Disable Clip' : 'Enable Clip', action: () => AVP.edit.toggleEnabled(ids) },
       { label: 'Link Selected', disabled: !many, action: () => AVP.edit.link(ids) },
       { label: 'Unlink', disabled: !hasPartner && !c.linkId, action: () => AVP.edit.unlink(ids) },
+      { label: 'Markers on This Clip', children: [
+        { label: 'Split at Each Marker', action: () => AVP.edit.splitAtMarkers(targets) },
+        { label: 'Dissolve at Each Marker', action: () => AVP.edit.transitionAtMarkers(targets, 'dissolve') },
+        { label: 'Remove Markers in This Clip', action: () => AVP.edit.removeMarkersOn(targets) },
+      ] },
       { sep: true },
       {
         label: 'Effects',

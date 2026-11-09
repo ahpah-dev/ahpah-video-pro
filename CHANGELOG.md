@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.14.0
+
+### Markers on a clip
+- Markers on This Clip (right-click a clip): split at every marker inside it, add a dissolve at each
+  marker, or remove the markers inside it.
+- Clip menu: Split at Each Marker, Dissolve at Each Marker and Remove Markers in Clip act on the
+  selected clips.
+- Each action is one undo step. Linked audio is split with its video, and a marker exactly on a clip's
+  edge does not cut it.
+
 ## 1.13.0
 
 ### Moving every panel
