@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.10.0
+
+### Keyframes
+- The diamond beside a keyed control is filled only when a keyframe sits under the playhead. It is
+  hollow when the control is keyed but has no key here, and dimmed when no key can be placed.
+  Before, it lit up for any keyed control, so clicking it could add a key where you did not expect.
+- Each keyed control has a keyframe lane under its slider. Every keyframe is a diamond at its place
+  on the clip, and a line shows the playhead. Click a keyframe to move the playhead to it. Drag a
+  keyframe to move it along the clip; it snaps to frames and cannot land on another keyframe.
+- The diamonds, the lanes, the keyed values and the sliders follow the playhead while you move it or
+  play, without rebuilding the panel.
+- Keyframes can only be placed while the playhead is over the clip. Before, a key at the playhead
+  outside the clip was placed at the clip's edge.
+- Keyframes follow edits: a cut splits them with values that meet at the cut, a tail trim and a speed
+  change keep them inside the clip, and no keyframe is left past the end of its clip, where it was
+  invisible and froze the value.
+
+### Speed and linked clips
+- Changing the speed of a linked clip changes its linked audio too. Before, changing only the video
+  left its audio at normal speed, so the picture and sound drifted apart.
+
 ## 1.9.5
 
 ### Effects library

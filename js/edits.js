@@ -35,10 +35,11 @@
       start: t,
       inPoint: c.inPoint + off * sp,
       duration: c.start + c.duration - t,
-      keys: AVP.shiftKeys(c.keys, off),
+      keys: AVP.rangeKeys(c.keys, off, c.duration),
       transIn: null,
       transOut: c.transOut,
     });
+    c.keys = AVP.rangeKeys(c.keys, 0, off);
     c.duration = off;
     c.transOut = null;
     S.clips.push(right);
@@ -66,6 +67,7 @@
       c.keys = AVP.shiftKeys(o.keys, d);
     } else {
       c.duration = o.duration + d;
+      c.keys = AVP.rangeKeys(o.keys, 0, c.duration);
     }
   };
 
@@ -148,6 +150,7 @@
             remove.add(mid.id);
           } else if (g.start < a - EPS) {
             g.duration = a - g.start; // covered at its tail
+            g.keys = AVP.rangeKeys(g.keys, 0, g.duration);
             g.transOut = null;
           } else {
             trimHead(g, b); // covered at its head
@@ -331,14 +334,25 @@
 
     setSpeed(ids, speed) {
       const sp = AVP.clamp(speed, 0.1, 16);
-      const list = ids.map(AVP.findClip).filter(Boolean);
+      // Linked partners change speed with their clip, so the sound stays in step with the picture.
+      const seen = new Set();
+      const list = [];
+      ids.map(AVP.findClip).filter(Boolean).forEach((c) => {
+        [c].concat(AVP.partners(c)).forEach((x) => {
+          if (seen.has(x.id)) return;
+          seen.add(x.id);
+          list.push(x);
+        });
+      });
       if (!list.length) return;
       AVP.pushUndo();
-      const keep = new Set(ids);
+      const keep = new Set(list.map((c) => c.id));
       list.forEach((c) => {
         const span = c.duration * (c.speed || 1);
+        const ratio = span / sp / c.duration; // new length over old length
         c.speed = sp;
         c.duration = span / sp;
+        Object.keys(c.keys || {}).forEach((k) => c.keys[k].forEach((p) => (p.t *= ratio)));
       });
       list.forEach((c) => E.carveRange(c.track, c.start, c.start + c.duration, keep));
       AVP.refresh();

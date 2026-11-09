@@ -36,7 +36,7 @@ it, sell it or bundle it however you like.
   glow, mosaic, vignette, film grain, crop, flip, tint, drop shadow, light leak, lens flare,
   scan lines and letterbox.
 - **Motion**: position, scale, rotation and opacity, with keyframes (the stopwatch and
-  diamond buttons). Keyframes also work on effect settings and volume.
+  diamond buttons). Each keyed control has a lane under it: click a keyframe to go to it, drag to move it. Keyframes also work on effect settings and volume.
 - **Transitions**: cross dissolve, dip to black and white, wipes (left to right, right to left,
   top to bottom, diagonal, box from the centre and iris), slides (left, right, top, bottom),
   zoom, spin, and constant-gain audio fades. Drag them onto a clip edge, or use the clip menu. Video

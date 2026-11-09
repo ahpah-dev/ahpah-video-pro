@@ -397,6 +397,26 @@
   };
 
   // Keyframe times are clip-local; when a clip is cut, keys move with the right-hand piece.
+  /*
+   * Keyframes for the part of a clip between local times a and b (b may be null for the end), moved so
+   * that a becomes 0. The values at both ends are worked out from the curve, so the picture does not jump
+   * at a cut, a trim or a speed change, and no keyframe is left outside the clip.
+   */
+  AVP.rangeKeys = function (keys, a, b) {
+    const out = {};
+    Object.keys(keys || {}).forEach((k) => {
+      const list = keys[k] || [];
+      if (!list.length) return;
+      const shifted = [{ t: 0, v: AVP.evalKeys(list, a, list[0].v) }];
+      list.forEach((p) => {
+        if (p.t > a + EPS && (b == null || p.t < b - EPS)) shifted.push({ t: p.t - a, v: p.v });
+      });
+      if (b != null && b - a > EPS) shifted.push({ t: b - a, v: AVP.evalKeys(list, b, list[list.length - 1].v) });
+      out[k] = shifted;
+    });
+    return out;
+  };
+
   AVP.shiftKeys = function (keys, offset) {
     const out = {};
     Object.keys(keys || {}).forEach((k) => {

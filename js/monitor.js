@@ -462,6 +462,7 @@
     if (S.playhead !== lastDrawnT) {
       lastDrawnT = S.playhead;
       markDirty(2);
+      if (AVP.panels && AVP.panels.syncPlayhead) AVP.panels.syncPlayhead();
     }
     drawIfNeeded(performance.now());
     AVP.timeline.updatePlayhead();

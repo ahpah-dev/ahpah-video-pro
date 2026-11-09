@@ -77,6 +77,36 @@ test('only audio-track clips make sound; a video clip is picture only, linked or
   assert.strictEqual(AVP.clipMakesSound(S.clips[0]), false, 'after unlinking, the video still does not sound');
 });
 
+test('cutting a keyed clip leaves no keyframe past either piece, and the values meet at the cut', () => {
+  reset([clip('V1', 0, 10, null, 0)]);
+  S.clips[0].keys = { x: [{ t: 2, v: 0 }, { t: 8, v: 60 }] };
+  E.splitClip(S.clips[0], 5);
+  const left = S.clips.find((c) => c.start === 0);
+  const right = S.clips.find((c) => c.start > 0);
+  assert.ok(left.keys.x.every((k) => k.t >= 0 && k.t <= left.duration + EPS), 'left keys stay inside the left piece');
+  assert.ok(right.keys.x.every((k) => k.t >= -EPS && k.t <= right.duration + EPS), 'right keys stay inside the right piece');
+  const endLeft = left.keys.x[left.keys.x.length - 1];
+  assert.ok(Math.abs(endLeft.t - 5) < EPS, 'left piece ends with a key at the cut');
+  assert.ok(Math.abs(endLeft.v - 30) < 1e-6, 'the value at the cut is the curve value there');
+  assert.ok(Math.abs(right.keys.x[0].v - 30) < 1e-6, 'the right piece starts at the same value');
+});
+
+test('trimming the tail removes keyframes past the new end', () => {
+  reset([clip('V1', 0, 10, null, 0)]);
+  const o = Object.assign({}, S.clips[0], { keys: { x: [{ t: 2, v: 0 }, { t: 8, v: 60 }] } });
+  S.clips[0].keys = o.keys;
+  AVP.trimApply(S.clips[0], o, 'trim-out', -4);
+  assert.ok(S.clips[0].keys.x.every((k) => k.t <= S.clips[0].duration + EPS), 'no key past the new end');
+});
+
+test('a speed change moves the linked audio with its video', () => {
+  reset([clip('V1', 0, 10, 'L', 0), clip('A1', 0, 10, 'L', 0)]);
+  E.setSpeed([S.clips[0].id], 2);
+  const a = S.clips.find((c) => c.track === 'A1');
+  assert.strictEqual(a.speed, 2, 'audio runs at the same speed');
+  assert.ok(Math.abs(a.duration - 5) < EPS, 'and is the same length as the video');
+});
+
 test('partners are clips with the same link that overlap in time', () => {
   reset([clip('V1', 0, 4, 'L', 0), clip('A1', 0, 4, 'L', 0), clip('A1', 6, 2, 'L', 0), clip('A2', 0, 4, null, 0)]);
   const v = S.clips[0];

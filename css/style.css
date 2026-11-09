@@ -1038,3 +1038,51 @@ kbd {
 .dock-mark.hidden { display: none; }
 .panel.dock-target { outline: 2px dashed var(--pr-accent, #2d8ceb); outline-offset: -4px; }
 body.dock-drag, body.dock-drag * { user-select: none; cursor: grabbing !important; }
+
+/* Keyframes: the diamond shows the key under the playhead; the lane shows every key along the clip */
+.kf-diamond.partial { border-color: var(--warn, #e7b04a); background: #1f1f1f; }
+.kf-diamond:disabled { opacity: 0.3; }
+.kf-lane {
+  grid-column: 1 / -1;
+  position: relative;
+  height: 12px;
+  margin: 2px 0 6px 14px;
+  background: #171717;
+  border: 1px solid #2f2f2f;
+  cursor: pointer;
+  touch-action: none;
+}
+.kf-lane::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: #3a3a3a;
+}
+.kf-dot {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  background: #1f1f1f;
+  border: 1px solid var(--warn, #e7b04a);
+  transform: rotate(45deg);
+  cursor: grab;
+  z-index: 2;
+}
+.kf-dot:hover { background: #3a3a3a; }
+.kf-dot.here { background: var(--warn, #e7b04a); }
+.kf-dot:active { cursor: grabbing; }
+.kf-head {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  margin-left: -0.5px;
+  background: #5aa8ff;
+  z-index: 1;
+  pointer-events: none;
+}

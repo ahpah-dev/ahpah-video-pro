@@ -53,47 +53,174 @@
 
   // Keyframe stopwatch: turns keyframing on (one key at the current value) or off.
   function toggleKeyframing(c, key) {
+    const cur = AVP.findClip(c.id) || c;
+    if (!(cur.keys[key] && cur.keys[key].length) && !playheadOnClip(cur)) {
+      return AVP.toast('Move the playhead over the clip to turn on keyframes', 'warn');
+    }
     AVP.pushUndo();
-    if (c.keys[key] && c.keys[key].length) {
-      delete c.keys[key];
+    if (cur.keys[key] && cur.keys[key].length) {
+      delete cur.keys[key];
     } else {
-      c.keys[key] = [{ t: localTime(c), v: readParam(c, key) }];
+      cur.keys[key] = [{ t: localTime(cur), v: readParam(cur, key) }];
     }
     AVP.refresh();
   }
 
+  // True when the playhead is over the clip. Keyframes can only be placed on the clip.
+  function playheadOnClip(c) {
+    return S.playhead >= c.start - AVP.EPS && S.playhead <= c.start + c.duration + AVP.EPS;
+  }
+
+  // Position of a keyframe along the lane, as a percentage of the clip.
+  function keyPct(c, t) {
+    return (AVP.clamp(t / Math.max(c.duration, 1e-6), 0, 1) * 100).toFixed(3);
+  }
+
   // Adds or removes a keyframe at the playhead without turning keyframing off.
   function toggleKeyAtPlayhead(c, key) {
+    const cur = AVP.findClip(c.id) || c;
+    if (!playheadOnClip(cur)) return AVP.toast('Move the playhead over the clip to set a keyframe', 'warn');
     AVP.pushUndo();
-    if (!c.keys[key] || !c.keys[key].length) c.keys[key] = [{ t: localTime(c), v: readParam(c, key) }];
-    else {
-      const t = localTime(c);
-      const i = c.keys[key].findIndex((k) => Math.abs(k.t - t) < 1e-3);
-      if (i >= 0) c.keys[key].splice(i, 1);
-      else AVP.setKey(c.keys[key], t, readParam(c, key));
-      if (!c.keys[key].length) delete c.keys[key];
+    const t = localTime(cur);
+    const keys = cur.keys[key];
+    const i = keys ? keys.findIndex((k) => Math.abs(k.t - t) < 1e-3) : -1;
+    if (keys && keys.length && i >= 0) {
+      keys.splice(i, 1);
+      if (!keys.length) delete cur.keys[key]; // the last keyframe removed turns keyframing off
+    } else if (keys && keys.length) {
+      AVP.setKey(keys, t, readParam(cur, key));
+    } else {
+      cur.keys[key] = [{ t, v: readParam(cur, key) }];
     }
     AVP.refresh();
+  }
+
+  // The keyframe lane under a keyed control: one diamond per keyframe along the clip, and the playhead.
+  function keyLaneHtml(c, key, keys, local, onClip) {
+    const dots = keys
+      .map((k) => {
+        const here = onClip && Math.abs(k.t - local) < 1e-3;
+        return `<span class="kf-dot${here ? ' here' : ''}" data-kfdot="${key}" data-kft="${k.t}" style="left:${keyPct(c, k.t)}%" title="Keyframe at ${AVP.fmtTC(c.start + k.t)}"></span>`;
+      })
+      .join('');
+    const head = onClip ? `<span class="kf-head" style="left:${keyPct(c, local)}%"></span>` : '';
+    return `<div class="kf-lane" data-kflane="${key}" title="Click to move the playhead. Drag a keyframe to move it.">${dots}${head}</div>`;
   }
 
   function paramRow(c, key, label, def, opts) {
     opts = opts || {};
     const value = readParam(c, key);
-    const keyed = !!(c.keys[key] && c.keys[key].length);
+    const keys = c.keys[key] || [];
+    const keyed = keys.length > 0;
+    const local = localTime(c);
+    const onClip = playheadOnClip(c);
+    // The diamond is filled only when a keyframe sits under the playhead, hollow when this control is
+    // keyed but has no key here, and dimmed when no key can be placed (not keyed, or playhead off the clip).
+    const atPlayhead = keyed && onClip && keys.some((k) => Math.abs(k.t - local) < 1e-3);
+    const diamondState = atPlayhead ? ' on' : keyed ? ' partial' : '';
+    const diamondTitle = !keyed
+      ? 'Turn on keyframes with the stopwatch first'
+      : !onClip
+        ? 'Move the playhead over the clip to keyframe this'
+        : atPlayhead
+          ? 'Remove the keyframe at the playhead'
+          : 'Add a keyframe at the playhead';
+    const watchTitle = keyed ? `Turn off keyframes for ${esc(label)} (removes its keys)` : `Turn on keyframes for ${esc(label)}`;
     const unit = opts.unit || '';
     const shown = Math.round(value * 10) / 10;
     const hard = opts.hard || [opts.min, opts.max];
-    const onKey = keyed ? ' on' : '';
     return (
       `<div class="fx-row" data-key="${key}">` +
-      `<button class="kf-watch${onKey}" data-kf="${key}" title="Toggle keyframes for ${esc(label)}"></button>` +
+      `<button class="kf-watch${keyed ? ' on' : ''}" data-kf="${key}" title="${watchTitle}"></button>` +
       `<span class="fx-label">${esc(label)}</span>` +
       `<input type="range" data-param="${key}" data-def="${def}" min="${opts.min}" max="${opts.max}" step="${opts.step || 1}" value="${value}">` +
       // The value box takes typed numbers. Typed values may go past the slider's range, within the hard limits.
       `<span class="num-wrap"><input type="text" class="num-in" inputmode="decimal" data-num="${key}" data-lo="${hard[0]}" data-hi="${hard[1]}" title="Type a value, then press Enter" value="${shown}"><span class="num-unit">${esc(unit)}</span></span>` +
-      `<button class="kf-diamond${keyed ? ' on' : ''}" data-kfkey="${key}" title="Add or remove a keyframe at the playhead"${keyed ? '' : ' disabled'}></button>` +
+      `<button class="kf-diamond${diamondState}" data-kfkey="${key}" title="${diamondTitle}"${keyed && onClip ? '' : ' disabled'}></button>` +
+      (keyed ? keyLaneHtml(c, key, keys, local, onClip) : '') +
       `</div>`
     );
+  }
+
+  // Keeps the keyframe diamonds, lanes, keyed values and sliders in step with the playhead, without
+  // rebuilding the panel (so a slider being dragged is not lost). Called whenever the playhead moves.
+  function syncPlayhead() {
+    const c = AVP.selectedClips()[0];
+    if (!c) return;
+    const local = localTime(c);
+    const onClip = playheadOnClip(c);
+    document.querySelectorAll('.fx-row[data-key]').forEach((row) => {
+      const key = row.dataset.key;
+      const keys = c.keys[key] || [];
+      const keyed = keys.length > 0;
+      const atPlayhead = keyed && onClip && keys.some((k) => Math.abs(k.t - local) < 1e-3);
+      const d = row.querySelector('.kf-diamond');
+      if (d) {
+        d.classList.toggle('on', atPlayhead);
+        d.classList.toggle('partial', keyed && !atPlayhead);
+        d.disabled = !(keyed && onClip);
+      }
+      const watch = row.querySelector('.kf-watch');
+      if (watch) watch.classList.toggle('on', keyed);
+      row.querySelectorAll('.kf-dot').forEach((dot) => {
+        dot.classList.toggle('here', onClip && Math.abs(+dot.dataset.kft - local) < 1e-3);
+      });
+      const head = row.querySelector('.kf-head');
+      if (head) head.style.left = keyPct(c, local) + '%';
+      const value = readParam(c, key);
+      const slider = row.querySelector('input[data-param]');
+      if (slider && document.activeElement !== slider) slider.value = value;
+      const box = row.querySelector('input[data-num]');
+      if (box && document.activeElement !== box) box.value = Math.round(value * 10) / 10;
+    });
+  }
+
+  // Keyframe lanes: click to move the playhead; drag a keyframe to move it along the clip.
+  function bindKeyLanes(root, c) {
+    root.querySelectorAll('.kf-lane').forEach((lane) => {
+      const key = lane.dataset.kflane;
+      lane.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        const cur = AVP.findClip(c.id);
+        if (!cur || !cur.keys[key]) return;
+        e.preventDefault();
+        const rect = lane.getBoundingClientRect();
+        const toLocal = (x) => AVP.clamp((x - rect.left) / Math.max(rect.width, 1), 0, 1) * cur.duration;
+        const dot = e.target.closest('.kf-dot');
+        if (!dot) {
+          AVP.monitor.goTo(cur.start + toLocal(e.clientX));
+          AVP.refresh();
+          return;
+        }
+        const t0 = +dot.dataset.kft;
+        const k = cur.keys[key].find((x) => Math.abs(x.t - t0) < 1e-6);
+        if (!k) return;
+        AVP.pushUndo();
+        let moved = false;
+        const move = (ev) => {
+          const nt = AVP.clamp(AVP.snapFrame(cur.start + toLocal(ev.clientX)) - cur.start, 0, cur.duration);
+          if (Math.abs(nt - k.t) < 1e-6) return;
+          if (cur.keys[key].some((o) => o !== k && Math.abs(o.t - nt) < 1e-3)) return; // never stack two keys
+          k.t = nt;
+          moved = true;
+          dot.style.left = keyPct(cur, nt) + '%';
+          AVP.monitor.draw();
+        };
+        const up = () => {
+          window.removeEventListener('pointermove', move);
+          window.removeEventListener('pointerup', up);
+          cur.keys[key].sort((a, b) => a.t - b.t);
+          if (!moved) {
+            // A click on a keyframe (no drag) moves the playhead to it and undoes the empty change.
+            AVP.popUndo();
+            AVP.monitor.goTo(cur.start + k.t);
+          }
+          AVP.refresh();
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', up);
+      });
+    });
   }
 
   /* ---------- Effect Controls ---------- */
@@ -300,6 +427,7 @@
       });
     });
     bindValueBoxes(controlsEl, c);
+    bindKeyLanes(controlsEl, c);
     controlsEl.querySelectorAll('[data-kf]').forEach((b) => b.addEventListener('click', () => toggleKeyframing(c, b.dataset.kf)));
     controlsEl.querySelectorAll('[data-kfkey]').forEach((b) =>
       b.addEventListener('click', () => toggleKeyAtPlayhead(c, b.dataset.kfkey))
@@ -616,6 +744,7 @@
       });
     });
     bindValueBoxes(root, c);
+    bindKeyLanes(root, c);
     root.querySelectorAll('[data-kf]').forEach((b) => b.addEventListener('click', () => toggleKeyframing(c, b.dataset.kf)));
     root.querySelectorAll('[data-kfkey]').forEach((b) => b.addEventListener('click', () => toggleKeyAtPlayhead(c, b.dataset.kfkey)));
   }
@@ -1030,6 +1159,7 @@
 
   AVP.panels = {
     init,
+    syncPlayhead,
     renderControls,
     renderSide,
     renderLibrary,
