@@ -87,7 +87,7 @@
       `<div class="fx-row" data-key="${key}">` +
       `<button class="kf-watch${onKey}" data-kf="${key}" title="Toggle keyframes for ${esc(label)}"></button>` +
       `<span class="fx-label">${esc(label)}</span>` +
-      `<input type="range" data-param="${key}" min="${opts.min}" max="${opts.max}" step="${opts.step || 1}" value="${value}">` +
+      `<input type="range" data-param="${key}" data-def="${def}" min="${opts.min}" max="${opts.max}" step="${opts.step || 1}" value="${value}">` +
       `<output>${shown}${unit}</output>` +
       `<button class="kf-diamond${keyed ? ' on' : ''}" data-kfkey="${key}" title="Add or remove a keyframe at the playhead"${keyed ? '' : ' disabled'}></button>` +
       `</div>`
@@ -573,16 +573,21 @@
       $('#lumAdd').addEventListener('click', () => AVP.edit.addFx([c.id], 'lumetri'));
       return;
     }
+    const collapsed = S.lumCollapsed || {};
     let html =
-      '<div class="fx-head"><div class="fx-name">Lumetri Color</div><div class="fx-sub">' + AVP.esc(name) + ' · ' + c.track + '</div></div>' +
-      '<div class="fx-card-head"><label class="df-check"><input type="checkbox" id="lumOn"' + (fx.enabled ? ' checked' : '') + '> Enabled</label>' +
-      '<span><button class="btn tiny" id="lumReset">Reset</button> <button class="btn tiny" id="lumRemove">Remove</button></span></div>';
+      '<div class="lum-top"><span class="lum-name">Lumetri Color</span>' +
+      '<span class="lum-clip">' + AVP.esc(name) + ' · ' + c.track + '</span>' +
+      '<span class="lum-actions"><label class="lum-fxon"><input type="checkbox" id="lumOn"' + (fx.enabled ? ' checked' : '') + '> On</label> ' +
+      '<button class="btn tiny" id="lumReset">Reset</button> <button class="btn tiny" id="lumRemove">Remove</button></span></div>';
     LUMETRI_GROUPS.forEach((g) => {
       if (g.slot) {
         html += '<div id="' + g.slot + '"></div>';
         return;
       }
-      html += '<div class="fx-group"><div class="fx-title">' + g.title + '</div>';
+      const key = g.title.toLowerCase().replace(/[^a-z]+/g, '-');
+      html +=
+        '<section class="lum-sec' + (collapsed[key] ? ' collapsed' : '') + '" data-sec="' + key + '">' +
+        '<header class="lum-head" data-key="' + key + '"><span class="lum-tri"></span>' + g.title + '</header><div class="lum-body">';
       if (g.slotInside) html += '<div id="' + g.slotInside + '"></div>';
       if (g.hsl) {
         html += '<label class="df-check"><input type="checkbox" id="lumHsl"' + (fx.params.hslOn ? ' checked' : '') + '> HSL secondary on</label>';
@@ -593,7 +598,7 @@
           return paramRow(c, 'fx:' + fx.id + ':' + k, d.label, d.def, { min: d.min, max: d.max, step: d.step || 1, unit: d.unit || '' });
         })
         .join('');
-      html += '</div>';
+      html += '</div></section>';
     });
     html += '<div class="fx-note">Shadows, highlights, whites and blacks move tones in their own range. Use the stopwatch on any control to keyframe it.</div>';
     body.innerHTML = html;
@@ -923,6 +928,26 @@
     setRightTab(S.rightTab || 'controls');
     renderLibrary();
     renderMarkers();
+    const lumBody = $('#lumetriBody');
+    if (lumBody) {
+      lumBody.addEventListener('click', (e) => {
+        const head = e.target.closest('.lum-head');
+        if (!head) return;
+        S.lumCollapsed = S.lumCollapsed || {};
+        const key = head.dataset.key;
+        S.lumCollapsed[key] = !S.lumCollapsed[key];
+        head.parentElement.classList.toggle('collapsed', !!S.lumCollapsed[key]);
+      });
+    }
+    document.addEventListener('dblclick', (e) => {
+      const inp = e.target.closest && e.target.closest('input[data-param]');
+      if (!inp || inp.dataset.def === undefined) return;
+      const c = AVP.selectedClips()[0];
+      if (!c) return;
+      AVP.pushUndo();
+      writeParam(c, inp.dataset.param, +inp.dataset.def);
+      AVP.refresh();
+    });
   }
 
   AVP.panels = {

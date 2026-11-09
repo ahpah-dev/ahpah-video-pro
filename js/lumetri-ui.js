@@ -40,17 +40,28 @@
     return fx.curves;
   }
 
+  // Premiere-style collapsible section: a header with a disclosure triangle, then the body.
+  // Collapsed state is kept in the project's UI state, so sections stay closed after a redraw.
+  function section(title, body) {
+    const key = title.toLowerCase().replace(/[^a-z]+/g, '-');
+    const closed = (S.lumCollapsed || {})[key] ? ' collapsed' : '';
+    return (
+      '<section class="lum-sec' + closed + '" data-sec="' + key + '">' +
+      '<header class="lum-head" data-key="' + key + '"><span class="lum-tri"></span>' + title + '</header>' +
+      '<div class="lum-body">' + body + '</div></section>'
+    );
+  }
+
   /* ---------- Curves ---------- */
 
   function curvesHtml() {
-    return (
-      '<div class="fx-group"><div class="fx-title">Curves</div>' +
+    return section(
+      'Curves',
       '<div class="curve-tabs">' +
-      CHANNELS.map((ch) => `<button class="btn tiny${ch.k === curveChannel ? ' active' : ''}" data-curve="${ch.k}">${ch.label}</button>`).join('') +
-      '<button class="btn tiny" id="curveReset">Reset</button></div>' +
-      '<canvas class="curve-canvas" id="curveCanvas" width="232" height="232"></canvas>' +
-      '<div class="fx-note">Click to add a point. Drag points to shape the curve. Double-click a point to remove it.</div>' +
-      '</div>'
+        CHANNELS.map((ch) => '<button class="btn tiny' + (ch.k === curveChannel ? ' active' : '') + '" data-curve="' + ch.k + '">' + ch.label + '</button>').join('') +
+        '<button class="btn tiny" id="curveReset">Reset</button></div>' +
+        '<canvas class="curve-canvas" id="curveCanvas" width="232" height="232"></canvas>' +
+        '<div class="fx-note">Click to add a point. Drag points to shape the curve. Double-click a point to remove it.</div>'
     );
   }
 
@@ -200,17 +211,17 @@
   /* ---------- Colour wheels ---------- */
 
   function wheelsHtml() {
-    return (
-      '<div class="fx-group"><div class="fx-title">Color Wheels</div>' +
+    return section(
+      'Color Wheels',
       '<div class="wheel-row">' +
-      WHEELS.map(
-        (w) =>
-          `<div class="wheel-cell"><canvas class="wheel" data-wheel="${w.key}" width="104" height="104"></canvas>` +
-          `<div class="wheel-label">${w.label}</div>` +
-          `<input type="range" class="wheel-level" data-wlevel="${w.l}" min="-100" max="100" step="1" title="Level">` +
-          `<output data-wout="${w.key}">0</output></div>`
-      ).join('') +
-      '</div><div class="fx-note">Drag inside a wheel to tint that tonal range. Double-click to reset it. The slider lifts or drops the whole range.</div></div>'
+        WHEELS.map(
+          (w) =>
+            '<div class="wheel-cell"><canvas class="wheel" data-wheel="' + w.key + '" width="118" height="118"></canvas>' +
+            '<div class="wheel-label">' + w.label + '</div>' +
+            '<input type="range" class="wheel-level" data-wlevel="' + w.l + '" min="-100" max="100" step="1" title="Master level for ' + w.label.toLowerCase() + '">' +
+            '<output data-wout="' + w.key + '">0</output></div>'
+        ).join('') +
+        '</div><div class="fx-note">Drag inside a wheel to tint that tonal range. Double-click to reset it. The slider below each wheel is the master level.</div>'
     );
   }
 
@@ -242,6 +253,14 @@
     g.strokeStyle = 'rgba(255,255,255,0.25)';
     g.beginPath();
     g.arc(W / 2, W / 2, R, 0, Math.PI * 2);
+    g.stroke();
+    // Crosshair through the centre, as in Premiere's wheels.
+    g.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    g.beginPath();
+    g.moveTo(W / 2, 4);
+    g.lineTo(W / 2, W - 4);
+    g.moveTo(4, W / 2);
+    g.lineTo(W - 4, W / 2);
     g.stroke();
     // Current position.
     const cx = W / 2 + (x / 100) * R;

@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.7.0
+
+### Design
+- The look is now flat and close to Premiere Pro: solid panels, a blue accent, and no glossy
+  highlights. The interface font is unchanged.
+- Sliders are stronger: a deeper groove, a clear fill to the value, a bordered thumb, and a
+  vertical fader style for the mixer.
+- Lumetri Color is laid out as Premiere-style sections (Basic Correction, White Balance, Color
+  Wheels, Curves, Creative, HSL Secondary, Input LUT). Each section can be collapsed from its
+  header, and the state is kept while you work.
+- Double-click any Lumetri or effect slider to return it to its default.
+- Colour wheels have a centre crosshair.
+
 ## 1.6.0
 
 ### Design
