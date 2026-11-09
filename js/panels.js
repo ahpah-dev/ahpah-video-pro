@@ -457,6 +457,17 @@
     return opts.map((o) => `<option value="${o.v}"${o.v === (current ? current.type : '') ? ' selected' : ''}>${esc(o.label)}</option>`).join('');
   }
 
+  // The Glow setting of a Glow Dissolve: how strongly the picture blooms at the middle of the transition.
+  function glowRow(spec, edge) {
+    if (!spec || spec.type !== 'glow-dissolve') return '';
+    const v = spec.glow === undefined ? AVP.TRANSITIONS['glow-dissolve'].glow : spec.glow;
+    return (
+      `<div class="fx-kv"><span>Glow</span><span class="glow-ctl">` +
+      `<input type="range" data-transglow="${edge}" value="${v}" min="0" max="100" step="1">` +
+      `<output data-transglow-out="${edge}">${Math.round(v)}%</output></span></div>`
+    );
+  }
+
   function renderControls() {
     if (!controlsEl) return;
     const c = AVP.selectedClips()[0];
@@ -530,8 +541,10 @@
     html +=
       `<div class="fx-kv"><span>Start</span><select data-trans="start">${transitionOptions(kind, tIn)}</select></div>` +
       `<div class="fx-kv"><span>Duration (s)</span><input type="number" data-transdur="start" value="${tIn ? tIn.duration : 1}" min="0.1" max="10" step="0.1"></div>` +
+      glowRow(tIn, 'start') +
       `<div class="fx-kv"><span>End</span><select data-trans="end">${transitionOptions(kind, tOut)}</select></div>` +
       `<div class="fx-kv"><span>Duration (s)</span><input type="number" data-transdur="end" value="${tOut ? tOut.duration : 1}" min="0.1" max="10" step="0.1"></div>` +
+      glowRow(tOut, 'end') +
       `<div class="fx-note">Transitions are centred on a cut when a clip touches the next one.</div></div>`;
 
     controlsEl.innerHTML = html;
@@ -701,6 +714,27 @@
         const edge = sel.dataset.trans;
         if (!sel.value) AVP.edit.removeTransition(c.id, edge);
         else AVP.edit.applyTransition(c.id, sel.value, edge);
+      });
+    });
+    controlsEl.querySelectorAll('input[data-transglow]').forEach((inp) => {
+      const edge = inp.dataset.transglow;
+      let pushed = false;
+      inp.addEventListener('input', () => {
+        const spec = transitionSpec(AVP.findClip(c.id) || c, edge);
+        if (!spec || spec.type !== 'glow-dissolve') return;
+        if (!pushed) {
+          AVP.pushUndo(); // one undo step for the whole drag
+          pushed = true;
+        }
+        spec.glow = AVP.clamp(+inp.value || 0, 0, 100);
+        const out = controlsEl.querySelector(`[data-transglow-out="${edge}"]`);
+        if (out) out.textContent = Math.round(spec.glow) + '%';
+        AVP.dataVersion++; // the compositor caches transition windows
+        AVP.monitor.draw();
+      });
+      inp.addEventListener('change', () => {
+        pushed = false;
+        AVP.refresh();
       });
     });
     controlsEl.querySelectorAll('input[data-transdur]').forEach((inp) => {

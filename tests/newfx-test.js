@@ -152,6 +152,38 @@ test('every look refers to real effects and parameters inside their ranges', () 
   });
 });
 
+test('glow dissolve is a picture transition with a default glow setting', () => {
+  const t = AVP.TRANSITIONS['glow-dissolve'];
+  assert.ok(t && t.name === 'Glow Dissolve' && t.cat === 'Dissolve' && t.audio === false);
+  assert.strictEqual(t.glow, 60);
+  assert.ok(AVP.transitionsFor('video').indexOf('glow-dissolve') >= 0);
+  assert.ok(AVP.transitionsFor('audio').indexOf('glow-dissolve') < 0);
+});
+
+test('glow dissolve crossfades and blooms most at the middle, by the amount set', () => {
+  const role = (glow) => ({ type: 'glow-dissolve', centered: true, a: 0, b: 1, glow });
+  const at = (glow, p, side) => AVP.visualAt(side === 'out' ? { in: null, out: role(glow) } : { in: role(glow), out: null }, p);
+  assert.strictEqual(at(100, 0, 'in').glow, 0, 'no glow at the start');
+  assert.ok(at(100, 0.999999, 'in').glow < 1e-3, 'no glow at the end');
+  assert.ok(Math.abs(at(100, 0.5, 'in').glow - 1) < 1e-9, '100% glow peaks at 1');
+  assert.ok(Math.abs(at(40, 0.5, 'in').glow - 0.4) < 1e-9, '40% glow peaks at 0.4');
+  assert.strictEqual(at(0, 0.5, 'in').glow, 0, '0% glow is a plain dissolve');
+  assert.ok(Math.abs(at(100, 0.5, 'out').glow - 1) < 1e-9, 'the outgoing clip blooms too');
+  assert.ok(Math.abs(at(100, 0.25, 'in').alpha - 0.25) < 1e-9 && Math.abs(at(100, 0.25, 'out').alpha - 0.75) < 1e-9, 'a normal crossfade');
+  assert.ok(Math.abs(at(undefined, 0.5, 'in').glow - 0.6) < 1e-9, 'a transition with no setting uses the default of 60%');
+  assert.strictEqual(AVP.visualAt({ in: { type: 'dissolve', centered: true, a: 0, b: 1 }, out: null }, 0.5).glow, 0, 'other transitions do not glow');
+});
+
+test('the glow setting travels with the transition into its time windows', () => {
+  const a = { id: 'a', start: 0, duration: 4, transIn: null, transOut: null, keys: {} };
+  const b = { id: 'b', start: 4, duration: 4, transIn: { type: 'glow-dissolve', duration: 1, glow: 35 }, transOut: null, keys: {} };
+  const list = [a, b];
+  assert.strictEqual(AVP.roleWindows(b, list).in.glow, 35, 'incoming side');
+  assert.strictEqual(AVP.roleWindows(a, list).out.glow, 35, 'outgoing side at the same cut');
+  const edge = { id: 'c', start: 0, duration: 4, transIn: { type: 'glow-dissolve', duration: 1, glow: 80 }, transOut: null, keys: {} };
+  assert.strictEqual(AVP.roleWindows(edge, [edge]).in.glow, 80, 'a transition at a clip edge');
+});
+
 let failed = 0;
 for (const t of tests) {
   try {

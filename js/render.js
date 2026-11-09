@@ -954,8 +954,39 @@
   }
 
   // Draws one visible clip. `alpha` already includes transitions and opacity.
+  // Glow Dissolve: blooms the clip's layer. The intensity (v.glow, 0 to 1) rises and falls over the transition.
+  function applyTransitionGlow(g, W, H) {
+    if (!HAS_FILTER) return;
+    if (scratch.width !== W || scratch.height !== H) {
+      scratch.width = W;
+      scratch.height = H;
+    }
+    const r = (8 + 40 * g) * (H / 1080);
+    const passes = [[r, Math.min(1, g * 1.1)], [r * 2.6, g * 0.6]];
+    passes.forEach(([radius, a]) => {
+      sctx.setTransform(1, 0, 0, 1, 0, 0);
+      sctx.globalAlpha = 1;
+      sctx.globalCompositeOperation = 'source-over';
+      sctx.clearRect(0, 0, W, H);
+      sctx.filter = `blur(${radius.toFixed(1)}px)`;
+      sctx.drawImage(layer, 0, 0);
+      sctx.filter = 'none';
+      lctx.save();
+      lctx.globalCompositeOperation = 'screen';
+      lctx.globalAlpha = a;
+      lctx.drawImage(scratch, 0, 0);
+      lctx.restore();
+    });
+    // A little lift in exposure, so the picture itself brightens as well as its halo.
+    lctx.save();
+    lctx.globalCompositeOperation = 'lighter';
+    lctx.globalAlpha = g * 0.25;
+    lctx.drawImage(layer, 0, 0);
+    lctx.restore();
+  }
+
   function paintClip(ctx, c, t, v, alpha, getSource, W, H) {
-    if (!needsLayer(c)) {
+    if (!needsLayer(c) && !(v.glow > 0.004)) {
       ctx.save();
       clipToVisual(ctx, v, W, H);
       ctx.globalAlpha = alpha;
@@ -972,6 +1003,7 @@
     if (!paintContent(lctx, c, t, v, getSource, W, H)) return;
     applyLumetri(c, t, W, H);
     applyLayerEffects(c, t, W, H);
+    if (v.glow > 0.004) applyTransitionGlow(Math.min(1, v.glow), W, H);
     ctx.save();
     clipToVisual(ctx, v, W, H);
     ctx.globalAlpha = alpha;

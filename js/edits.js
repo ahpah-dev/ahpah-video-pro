@@ -297,6 +297,7 @@
       if (!(opts && opts.quiet)) AVP.pushUndo();
       const apply = (clip, where, tType) => {
         const spec = { type: tType, duration: def.dur };
+        if (tType === type && def.glow !== undefined) spec.glow = def.glow; // a setting of its own, e.g. Glow Dissolve
         if (where === 'start') clip.transIn = spec;
         else {
           const end = clip.start + clip.duration;

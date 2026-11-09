@@ -77,10 +77,10 @@ Dragging a transition onto a cut shows where it will land:
   of effects you can then adjust or remove. Drag a look onto a clip, or click it to apply it to the selection.
 - **Motion**: position, scale, rotation and opacity, with keyframes (the stopwatch and
   diamond buttons). Each keyed control has a lane under it: click a keyframe to go to it, drag to move it. Keyframes also work on effect settings and volume.
-- **Transitions** (27 video, plus constant-gain audio fades): cross dissolve, blur dissolve, dip to black
+- **Transitions** (28 video, plus constant-gain audio fades): cross dissolve, blur dissolve, dip to black
   and white, wipes (left to right, right to left, top to bottom, diagonal, box from the centre, iris,
   clock, checkerboard, random blocks and venetian blinds), slides (left, right, top, bottom), zoom,
-  zoom through, whip pan, spin, flash, cross zoom, barn doors, diamond and star wipes, bounce in,
+  zoom through, whip pan, spin, flash, cross zoom, glow dissolve (with its own Glow setting, 0 to 100%, under Transitions in Effect Controls), barn doors, diamond and star wipes, bounce in,
   spin zoom, whip pan up and glitch. Video transitions crossfade the linked audio.
 - **Drag and drop transitions**: drag one from the Effects tab onto the timeline. Drop it on a cut
   between two clips and it is centred on the cut; drop it near a clip's start or end and it goes there.

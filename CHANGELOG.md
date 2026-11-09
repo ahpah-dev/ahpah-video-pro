@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.26.0
+
+### Glow Dissolve transition
+- New video transition **Glow Dissolve** (Dissolve category, 28 video transitions in all). The two clips
+  crossfade while both bloom: the picture gets a soft halo and a lift in brightness that peaks at the
+  middle of the transition and fades out again.
+- It has its own setting. Select the clip and open Transitions in Effect Controls: a **Glow** slider
+  (0 to 100%, default 60%) appears under the duration of a Glow Dissolve, for the start and the end.
+  0% is a plain dissolve; 100% is a strong bloom. Dragging the slider is one undo step and updates the
+  monitor as you drag. The setting is saved with the transition, so older projects and other
+  transitions are unaffected.
+- Checked in the editor at the middle of the transition: the brightness of the same pixels rose with the
+  setting (a letter went from 34 at 0% to 149 at 100%). Three new tests cover the transition, the
+  bloom curve for both clips and the setting reaching the time windows.
+
 ## 1.25.1
 
 ### Playback no longer blacks out after a split or a transition

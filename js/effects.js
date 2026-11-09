@@ -339,6 +339,8 @@
     'random-blocks': { name: 'Random Blocks', cat: 'Wipe', dur: 1, audio: false },
     blinds: { name: 'Venetian Blinds', cat: 'Wipe', dur: 1, audio: false },
     flash: { name: 'Flash', cat: 'Dissolve', dur: 0.6, audio: false },
+    // glow: how strongly the picture blooms at the middle of the transition, in percent. Editable per transition.
+    'glow-dissolve': { name: 'Glow Dissolve', cat: 'Dissolve', dur: 1, audio: false, glow: 60 },
     'cross-zoom': { name: 'Cross Zoom', cat: 'Dissolve', dur: 1, audio: false },
     'barn-doors': { name: 'Barn Doors (open sideways)', cat: 'Wipe', dur: 1, audio: false },
     'barn-doors-v': { name: 'Barn Doors (open up and down)', cat: 'Wipe', dur: 1, audio: false },
@@ -872,7 +874,7 @@
   // transition length and both clips, so a transition never runs past a clip.
   function boundary(prev, cur) {
     const tin = cur.transIn;
-    return { type: tin.type, d: Math.min(tin.duration, prev.duration, cur.duration) };
+    return { type: tin.type, d: Math.min(tin.duration, prev.duration, cur.duration), glow: tin.glow };
   }
 
   /*
@@ -891,20 +893,20 @@
     if (c.transIn) {
       if (prev) {
         const b = boundary(prev, c);
-        inRole = { type: b.type, centered: true, a: c.start - b.d / 2, b: c.start + b.d / 2 };
+        inRole = { type: b.type, centered: true, a: c.start - b.d / 2, b: c.start + b.d / 2, glow: b.glow };
       } else {
         const d = Math.min(c.transIn.duration, c.duration);
-        inRole = { type: c.transIn.type, centered: false, a: c.start, b: c.start + d };
+        inRole = { type: c.transIn.type, centered: false, a: c.start, b: c.start + d, glow: c.transIn.glow };
       }
     }
     if (next) {
       if (next.transIn) {
         const b = boundary(c, next);
-        outRole = { type: b.type, centered: true, a: end - b.d / 2, b: end + b.d / 2 };
+        outRole = { type: b.type, centered: true, a: end - b.d / 2, b: end + b.d / 2, glow: b.glow };
       }
     } else if (c.transOut) {
       const d = Math.min(c.transOut.duration, c.duration);
-      outRole = { type: c.transOut.type, centered: false, a: end - d, b: end };
+      outRole = { type: c.transOut.type, centered: false, a: end - d, b: end, glow: c.transOut.glow };
     }
 
     return {
@@ -918,6 +920,9 @@
   AVP.isVisibleAt = function (R, t) {
     return t >= R.ext0 - EPS && t < R.ext1 - EPS;
   };
+
+  // Glow Dissolve: the bloom at the middle of the transition, 0 to 1. A transition made before the setting existed gets the default.
+  const glowAmount = (role) => clamp01((role.glow === undefined ? AVP.TRANSITIONS['glow-dissolve'].glow : role.glow) / 100);
 
   function applyIn(v, role, p) {
     switch (role.type) {
@@ -991,6 +996,10 @@
       case 'diamond-wipe':
       case 'star-wipe':
         v.mask = { type: role.type, p };
+        break;
+      case 'glow-dissolve':
+        v.alpha *= p;
+        v.glow += glowAmount(role) * Math.sin(Math.PI * p);
         break;
       case 'flash':
         if (role.centered) {
@@ -1095,6 +1104,10 @@
       case 'star-wipe':
         if (!role.centered) v.alpha *= 1 - p;
         break;
+      case 'glow-dissolve':
+        v.alpha *= 1 - p;
+        v.glow += glowAmount(role) * Math.sin(Math.PI * p);
+        break;
       case 'flash':
         if (role.centered) v.alpha *= p < 0.5 ? 1 : 0;
         else {
@@ -1137,7 +1150,7 @@
    * and optional full-frame colour overlays drawn before / after the clip.
    */
   AVP.visualAt = function (R, t) {
-    const v = { alpha: 1, dx: 0, dy: 0, scale: 1, rot: 0, blur: 0, clip: null, mask: null, before: null, after: null };
+    const v = { alpha: 1, dx: 0, dy: 0, scale: 1, rot: 0, blur: 0, glow: 0, clip: null, mask: null, before: null, after: null };
     if (R.in && t >= R.in.a - EPS && t < R.in.b) {
       applyIn(v, R.in, clamp01((t - R.in.a) / (R.in.b - R.in.a)));
     }

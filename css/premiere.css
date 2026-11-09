@@ -287,3 +287,9 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 
 .ramp-canvas { display: block; width: 100%; margin: 6px 0 4px; border-radius: 3px; cursor: crosshair; touch-action: none; }
 .ramp-btns { display: flex; gap: 6px; margin: 4px 0; }
+
+/* ---------- transition glow setting ---------- */
+
+.glow-ctl { display: inline-flex; align-items: center; gap: 6px; width: 120px; }
+.glow-ctl input[type=range] { flex: 1; min-width: 0; }
+.glow-ctl output { width: 30px; flex: 0 0 30px; text-align: right; color: var(--pr-value, #62b1ff); font-family: Consolas, monospace; font-size: 11px; }
