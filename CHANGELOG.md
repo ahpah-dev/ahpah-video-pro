@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.9.1
+
+### Importing a video with sound
+- A video with sound now gives a picture clip on the video track and a sound clip on the audio track,
+  and only the sound clip shows a waveform. Before, the video clip also showed the waveform, so it
+  looked like two sounds.
+- The video's own sound is muted whenever its sound clip is on the timeline, so the sound plays once.
+- The two clips stay linked, so moving or cutting one moves or cuts the other. Use Unlink to
+  separate them completely.
+
 ## 1.9.0
 
 ### Customising the layout

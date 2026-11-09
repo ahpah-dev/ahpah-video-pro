@@ -122,8 +122,11 @@
     const left = c.start * S.zoom;
     const width = Math.max(3, c.duration * S.zoom);
     let style = `left:${left}px;width:${width}px;`;
+    // Only clips on an audio track show the waveform. A video clip shows its picture; its sound is
+    // the separate audio clip next to it, so the video clip must not look like a second sound.
     let wave = '';
-    if (m && m.wave && kind !== 'image' && kind !== 'title') {
+    const onAudioTrack = !!(S.tracks[c.track] && S.tracks[c.track].kind === 'audio');
+    if (m && m.wave && onAudioTrack && kind !== 'image' && kind !== 'title') {
       const sp = c.speed || 1;
       const full = (m.duration / sp) * S.zoom;
       wave = ' wv-' + m.id;
