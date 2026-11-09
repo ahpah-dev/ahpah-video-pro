@@ -20,6 +20,8 @@
   let ctx = null;
   let audioCtx = null;
   let streamDest = null;
+  let masterGain = null; // every clip's gain feeds this, so the master meter sees the mix
+  let masterAnalyser = null;
   const nodes = new Map(); // clipId -> { el?, img?, gain?, src?, mediaId, warned }
   const imageCache = new Map(); // mediaId -> HTMLImageElement
   let lastTs = 0;
@@ -70,7 +72,7 @@
           src = audioCtx.createMediaElementSource(el);
           gain = audioCtx.createGain();
           src.connect(gain);
-          gain.connect(audioCtx.destination);
+          gain.connect(masterGain || audioCtx.destination);
           if (streamDest) gain.connect(streamDest);
         } catch (err) {
           gain = null;
@@ -97,6 +99,8 @@
   function gainFor(c, R, t) {
     const tr = S.tracks[c.track];
     if (!tr || !c.enabled || tr.muted) return 0;
+    // Solo: when any audio track is soloed, the other audio tracks are silent.
+    if (tr.kind === 'audio' && !tr.solo && Object.keys(S.tracks).some((id) => S.tracks[id].kind === 'audio' && S.tracks[id].solo)) return 0;
     const m = AVP.findMedia(c.mediaId);
     if (m && m.type === 'video' && tr.kind === 'video' && hasLinkedAudio(c)) return 0;
     return Math.max(0, (AVP.propAt(c, 'volume', t) / 100) * AVP.audioRamp(R, t));
@@ -472,6 +476,11 @@
     try {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       streamDest = audioCtx.createMediaStreamDestination();
+      masterGain = audioCtx.createGain();
+      masterAnalyser = audioCtx.createAnalyser();
+      masterAnalyser.fftSize = 1024;
+      masterGain.connect(audioCtx.destination);
+      masterGain.connect(masterAnalyser);
     } catch (err) {
       audioCtx = null;
       streamDest = null;
@@ -506,5 +515,6 @@
     markDirty,
     getSource,
     audioContext: () => audioCtx,
+    masterAnalyser: () => masterAnalyser,
   };
 })();

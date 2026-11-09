@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.0
+
+### Premiere Pro-style interface
+- Application bar with the Premiere menu order (File, Edit, Clip, Sequence, Markers, Graphics,
+  View, Window, Help) and a workspace bar: Learning, Assembly, Editing, Color, Effects, Audio,
+  Graphics, Captions, Libraries.
+- Working workspaces: Editing (default), Assembly (wide Project panel), Effects (wide Effects
+  library), Color (large Program monitor) and Audio (taller timeline). The others show a message.
+- Left panel group with Project (search, import, remove), Effects and Markers tabs.
+- Right panel group with Effect Controls and Metadata tabs.
+- Timeline with a sequence tab, a vertical tool palette (Selection, Razor, Hand, Zoom, Type),
+  track headers with lock, eye, and M / S buttons, and a master audio meter driven by the mix.
+- Audio solo on audio tracks.
+- Premiere-style dark colours, panel tabs, timecode, and monitor transport.
+
+## 1.1.0
 ## 1.1.0
 
 ### Performance

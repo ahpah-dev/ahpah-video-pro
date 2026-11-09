@@ -9,33 +9,68 @@
 </head>
 <body>
 
-  <header class="topbar">
+  <!-- Application bar: brand, menus and workspace tabs -->
+  <header class="appbar">
     <div class="brand">
-      <img src="assets/logo.svg" alt="" width="20" height="20">
+      <img src="assets/logo.svg" alt="" width="18" height="18">
       <span>AhPah Video Pro</span>
     </div>
     <nav class="menubar" id="menubar"></nav>
-    <div class="workspace-tabs"><span class="ws active">Editing</span></div>
+    <div class="grow"></div>
+    <nav class="workspaces" id="workspaces">
+      <button class="wtab" data-ws="learning">Learning</button>
+      <button class="wtab" data-ws="assembly">Assembly</button>
+      <button class="wtab active" data-ws="editing">Editing</button>
+      <button class="wtab" data-ws="color">Color</button>
+      <button class="wtab" data-ws="effects">Effects</button>
+      <button class="wtab" data-ws="audio">Audio</button>
+      <button class="wtab" data-ws="graphics">Graphics</button>
+      <button class="wtab" data-ws="captions">Captions</button>
+      <button class="wtab" data-ws="libraries">Libraries</button>
+    </nav>
     <div class="proj-name" id="projName"></div>
   </header>
 
-  <main class="layout">
+  <main class="layout ws-editing" id="layout">
 
-    <!-- Project panel (media bin) -->
-    <section class="panel" id="binPanel">
-      <div class="panel-head">
-        <span class="tab active">Project: <b id="binProjName">Untitled Project</b></span>
-        <span class="grow"></span>
-        <button class="btn small" id="btnImport" title="Import media (Ctrl+I)">Import</button>
+    <!-- Left panel group: Project, Effects, Markers -->
+    <section class="panel" id="leftPanel">
+      <div class="ptabs">
+        <button class="ptab active" id="tabProject" data-ptab="project">Project: <b id="binProjName">Untitled Project</b></button>
+        <button class="ptab" id="tabEffectsLib" data-ptab="effects">Effects</button>
+        <button class="ptab" id="tabMarkers" data-ptab="markers">Markers</button>
       </div>
-      <div class="bin-list" id="binList"></div>
-      <div class="panel-foot"><span id="binCount">0 items</span><span class="muted">Double-click to open in Source</span></div>
+
+      <div class="pane" id="paneProject">
+        <div class="bin-toolbar">
+          <input type="search" id="binSearch" placeholder="Search media" aria-label="Search media">
+          <button class="btn icon" id="btnImport" title="Import media (Ctrl+I)">
+            <svg viewBox="0 0 16 16"><path d="M8 2v8m0 0L5 7m3 3 3-3M3 12.5v1h10v-1" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button class="btn icon" id="btnRemoveMedia" title="Remove selected media from the project">
+            <svg viewBox="0 0 16 16"><path d="M3.5 4.5h9M6 4.5V3h4v1.5M5 4.5l.6 8.5h4.8l.6-8.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div class="bin-list" id="binList"></div>
+        <div class="panel-foot"><span id="binCount">0 items</span><span class="muted">Double-click to open in Source</span></div>
+      </div>
+
+      <div class="pane hidden" id="paneEffects">
+        <div class="lib-body" id="libBody"></div>
+      </div>
+
+      <div class="pane hidden" id="paneMarkers">
+        <div class="list-body" id="markersBody"></div>
+        <div class="panel-foot"><span id="markerCount">0 markers</span><span class="muted">M adds a marker at the playhead</span></div>
+      </div>
     </section>
 
     <!-- Source monitor -->
     <section class="panel" id="srcPanel">
       <div class="panel-head">
         <span class="tab active">Source: <b id="srcName">(no clip)</b></span>
+        <span class="grow"></span>
+        <span class="muted" id="srcInfo"></span>
       </div>
       <div class="monitor">
         <video id="srcVideo" playsinline></video>
@@ -48,14 +83,14 @@
       </div>
       <input type="range" id="srcScrub" min="0" max="1" step="0.001" value="0">
       <div class="transport">
-        <button class="btn icon" id="srcBack" data-icon="stepBack" title="Previous frame"></button>
-        <button class="btn icon" id="srcPlay" data-icon="play" title="Play / pause source"></button>
-        <button class="btn icon" id="srcFwd" data-icon="stepFwd" title="Next frame"></button>
+        <button class="btn icon" id="srcMarkIn" title="Mark In (I)">{</button>
+        <button class="btn icon" id="srcMarkOut" title="Mark Out (O)">}</button>
         <span class="sep-v"></span>
-        <button class="btn" id="srcMarkIn" title="Mark In (I)">Mark In</button>
-        <button class="btn" id="srcMarkOut" title="Mark Out (O)">Mark Out</button>
+        <button class="btn icon" id="srcBack" data-icon="stepBack" title="Previous frame (Left)"></button>
+        <button class="btn icon play-main" id="srcPlay" data-icon="play" title="Play / pause source (K)"></button>
+        <button class="btn icon" id="srcFwd" data-icon="stepFwd" title="Next frame (Right)"></button>
+        <span class="sep-v"></span>
         <button class="btn" id="srcClear" title="Clear marks">Clear</button>
-        <span class="sep-v"></span>
         <button class="btn" id="srcInsert" title="Insert at playhead (,)">Insert</button>
         <button class="btn" id="srcOverwrite" title="Overwrite at playhead (.)">Overwrite</button>
       </div>
@@ -100,35 +135,50 @@
       </div>
     </section>
 
-    <!-- Effect Controls / Effects library -->
+    <!-- Right panel group: Effect Controls, Metadata -->
     <section class="panel" id="fxPanel">
-      <div class="panel-head tabs-head">
-        <button class="tab-btn active" id="tabControls">Effect Controls</button>
-        <button class="tab-btn" id="tabEffects">Effects</button>
+      <div class="ptabs">
+        <button class="ptab active" id="tabControls" data-rtab="controls">Effect Controls</button>
+        <button class="ptab" id="tabMetadata" data-rtab="metadata">Metadata</button>
       </div>
       <div class="fx-body" id="fxBody"></div>
-      <div class="lib-body hidden" id="libBody"></div>
+      <div class="fx-body hidden" id="infoBody"></div>
     </section>
 
     <!-- Timeline -->
     <section class="panel timeline" id="timeline">
+      <div class="seq-tabs">
+        <div class="seq-tab active">Sequence 01<span class="seq-x">×</span></div>
+      </div>
       <div class="tl-toolbar">
         <span class="tc big" id="tlTC">00:00:00:00</span>
         <span class="sep-v"></span>
-        <div class="seg" title="Tools">
-          <button class="btn tool" data-tool="select" title="Selection (V)"><svg viewBox="0 0 16 16"><path d="M3.5 2.5l9 5.2-4 1 2.4 4.1-1.6.9-2.4-4.1-2.6 2.6z" fill="currentColor"/></svg></button>
-          <button class="btn tool" data-tool="razor" title="Razor (C)"><svg viewBox="0 0 16 16"><rect x="1.5" y="6" width="13" height="4" rx="1.2" transform="rotate(-35 8 8)" fill="currentColor"/></svg></button>
-          <button class="btn tool" data-tool="hand" title="Hand (H)"><svg viewBox="0 0 16 16"><path d="M5 8V3.6a1 1 0 0 1 2 0V7.4M7 7V2.6a1 1 0 0 1 2 0V7.2M9 7V3.4a1 1 0 0 1 2 0V9l.9-.3a1 1 0 0 1 1.1 1.6L10.8 13H6.2L3.6 9.6a1 1 0 0 1 1.4-1.4L5 8.6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        </div>
-        <span class="sep-v"></span>
-        <button class="btn" id="tlSnap" title="Toggle snapping (S)">Snap</button>
+        <button class="btn icon" id="tlSnap" title="Snap to edges and markers (S)">
+          <svg viewBox="0 0 16 16"><path d="M3.5 3.5v4.2a4.5 4.5 0 0 0 9 0V3.5h-2.5v4.2a2 2 0 0 1-4 0V3.5z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="btn icon" id="tlMarker" title="Add marker at playhead (M)">
+          <svg viewBox="0 0 16 16"><path d="M4 2.5v11M4 3h7.5l-2 2.5 2 2.5H4" fill="currentColor" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
+        </button>
         <button class="btn" id="tlFit" title="Fit timeline (\)">Fit</button>
         <span class="grow"></span>
-        <span class="muted">Zoom</span>
+        <svg class="zoom-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h12M2 8l2-2M2 8l2 2M14 8l-2-2M14 8l-2 2" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
         <input type="range" id="tlZoom" min="5" max="240" step="1" value="60" title="Timeline zoom">
       </div>
-      <div class="tl-scroll" id="tlScroll">
-        <div class="tl-content" id="tlContent"></div>
+      <div class="tl-body">
+        <aside class="tools" id="toolPalette" aria-label="Tools">
+          <button class="tool-btn" data-tool="select" title="Selection (V)"><svg viewBox="0 0 16 16"><path d="M3.5 2.5l9 5.2-4 1 2.4 4.1-1.6.9-2.4-4.1-2.6 2.6z" fill="currentColor"/></svg></button>
+          <button class="tool-btn" data-tool="razor" title="Razor (C)"><svg viewBox="0 0 16 16"><rect x="1.5" y="6" width="13" height="4" rx="1.2" transform="rotate(-35 8 8)" fill="currentColor"/></svg></button>
+          <button class="tool-btn" data-tool="hand" title="Hand (H)"><svg viewBox="0 0 16 16"><path d="M5 8V3.6a1 1 0 0 1 2 0V7.4M7 7V2.6a1 1 0 0 1 2 0V7.2M9 7V3.4a1 1 0 0 1 2 0V9l.9-.3a1 1 0 0 1 1.1 1.6L10.8 13H6.2L3.6 9.6a1 1 0 0 1 1.4-1.4L5 8.6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button class="tool-btn" data-tool="zoom" title="Zoom (Z): click to zoom in, Alt+click to zoom out"><svg viewBox="0 0 16 16"><circle cx="6.8" cy="6.8" r="4.3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 10l3.6 3.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M6.8 4.9v3.8M4.9 6.8h3.8" stroke="currentColor" stroke-width="1.1"/></svg></button>
+          <button class="tool-btn" data-tool="type" title="Type (T): click a video track to add a title"><svg viewBox="0 0 16 16"><path d="M3 3.5h10M8 3.5v9M5.5 12.5h5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+        </aside>
+        <div class="tl-scroll" id="tlScroll">
+          <div class="tl-content" id="tlContent"></div>
+        </div>
+        <aside class="meters" id="meters" title="Master output level">
+          <canvas id="meterCanvas" width="26" height="200"></canvas>
+          <div class="meter-label">dB</div>
+        </aside>
       </div>
     </section>
 
@@ -160,6 +210,7 @@
   <script src="js/dialog.js"></script>
   <script src="js/panels.js"></script>
   <script src="js/timeline.js"></script>
+  <script src="js/meters.js"></script>
   <script src="js/project.js"></script>
   <script src="js/main.js"></script>
 </body>

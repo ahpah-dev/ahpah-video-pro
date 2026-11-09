@@ -35,6 +35,8 @@
     S.tool = tool;
     dom.scroll.classList.toggle('tool-razor', tool === 'razor');
     dom.scroll.classList.toggle('tool-hand', tool === 'hand');
+    dom.scroll.classList.toggle('tool-zoom', tool === 'zoom');
+    dom.scroll.classList.toggle('tool-type', tool === 'type');
     updateToolbar();
   }
 
@@ -173,11 +175,14 @@
       html +=
         `<div class="tl-row ${tr.kind}${tr.locked ? ' is-locked' : ''}" data-row="${id}" style="height:${h}px">` +
         `<div class="tl-head ${tr.kind}${isTarget ? ' target' : ''}" data-head="${id}" title="Click to target ${id}. Right-click for track options.">` +
-        `<span class="tl-name">${id}</span>` +
         `<span class="tl-buttons">` +
-        `<button class="tl-toggle${off ? ' off' : ''}" data-toggle="${id}" title="${tr.kind === 'video' ? 'Show / hide track' : 'Mute / unmute track'}"></button>` +
-        `<button class="tl-toggle lock${tr.locked ? ' on' : ''}" data-lock="${id}" title="Lock / unlock track"></button>` +
-        `</span></div>` +
+        `<button class="tl-toggle lock${tr.locked ? ' on' : ''}" data-lock="${id}" title="Lock / unlock track">${ICON_LOCK}</button>` +
+        (tr.kind === 'video'
+          ? `<button class="tl-toggle${off ? ' off' : ''}" data-toggle="${id}" title="Show / hide track">${ICON_EYE}</button>`
+          : `<button class="tl-toggle mute${tr.muted ? ' on' : ''}" data-toggle="${id}" title="Mute track">M</button>` +
+            `<button class="tl-toggle solo${tr.solo ? ' on' : ''}" data-solo="${id}" title="Solo track">S</button>`) +
+        `</span>` +
+        `<span class="tl-name">${id}</span></div>` +
         `<div class="tl-lane" data-track="${id}" style="width:${laneW}px;height:${h}px">` +
         list.map((c) => clipHtml(c, list)).join('') +
         transitionsHtml(list, id) +
@@ -188,11 +193,6 @@
     html += '<div class="tl-playhead"></div>';
     dom.content.innerHTML = html;
     dom.content.style.width = HEAD_W + laneW + 'px';
-    dom.content.querySelectorAll('.tl-toggle').forEach((btn) => {
-      const id = btn.dataset.toggle || btn.dataset.lock;
-      if (btn.dataset.lock) btn.innerHTML = ICON_LOCK;
-      else btn.innerHTML = S.tracks[id].kind === 'video' ? ICON_EYE : ICON_SPK;
-    });
     dom.marquee = dom.content.querySelector('.tl-marquee');
     dom.playhead = dom.content.querySelector('.tl-playhead');
     drawRuler(laneW);
@@ -372,6 +372,23 @@
       return;
     }
 
+    if (S.tool === 'zoom') {
+      // Click to zoom in around the pointer; Alt+click zooms out.
+      zoomAt(e.altKey ? 1 / 1.5 : 1.5, timeAtClientX(e.clientX), e.clientX);
+      return;
+    }
+
+    if (S.tool === 'type') {
+      const lane = e.target.closest('.tl-lane[data-track]');
+      if (!lane) return;
+      const tid = lane.dataset.track;
+      if (S.tracks[tid].kind !== 'video') return AVP.toast('Titles go on a video track', 'warn');
+      const t = Math.max(0, AVP.snapFrame((e.clientX - lane.getBoundingClientRect().left) / S.zoom));
+      AVP.edit.placeTitle({ track: tid, start: t, preset: 0, mode: 'overwrite' });
+      setTool('select');
+      return;
+    }
+
     if (e.target.closest('.tl-row.ruler')) {
       AVP.monitor.stop();
       drag = { kind: 'scrub' };
@@ -511,6 +528,14 @@
       AVP.refresh();
       return;
     }
+    const so = e.target.closest('[data-solo]');
+    if (so) {
+      const tr = S.tracks[so.dataset.solo];
+      AVP.pushUndo();
+      tr.solo = !tr.solo;
+      AVP.refresh();
+      return;
+    }
     const lk = e.target.closest('[data-lock]');
     if (lk) {
       const tr = S.tracks[lk.dataset.lock];
@@ -605,6 +630,13 @@
     const zoom = $('#tlZoom');
     if (zoom) zoom.value = S.zoom;
     render();
+  }
+
+  // Zooms so the time under the pointer stays under the pointer.
+  function zoomAt(factor, t, clientX) {
+    const offset = clientX - dom.scroll.getBoundingClientRect().left;
+    setZoom(S.zoom * factor);
+    dom.scroll.scrollLeft = Math.max(0, HEAD_W + t * S.zoom - offset);
   }
 
   function zoomBy(factor) {
@@ -817,6 +849,7 @@
     });
     $('#tlSnap').addEventListener('click', () => AVP.main.toggleSnap());
     $('#tlFit').addEventListener('click', fit);
+    $('#tlMarker').addEventListener('click', () => AVP.edit.addMarker(S.playhead));
     $('#tlZoom').addEventListener('input', (e) => {
       S.zoom = +e.target.value;
       render();

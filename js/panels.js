@@ -12,6 +12,7 @@
 
   let controlsEl = null;
   let libraryEl = null;
+  let infoEl = null;
 
   /* ---------- parameter access (plain value or keyframed) ---------- */
 
@@ -412,29 +413,135 @@
 
   /* ---------- tabs ---------- */
 
-  function setPanel(name) {
-    S.panel = name;
-    const ctrlTab = $('#tabControls');
-    const libTab = $('#tabEffects');
-    if (ctrlTab) ctrlTab.classList.toggle('active', name === 'controls');
-    if (libTab) libTab.classList.toggle('active', name === 'effects');
+  /* ---------- tab groups: left (project / effects / markers), right (controls / metadata) ---------- */
+
+  function setLeftTab(name) {
+    S.leftTab = name;
+    document.querySelectorAll('[data-ptab]').forEach((b) => b.classList.toggle('active', b.dataset.ptab === name));
+    const panes = { project: '#paneProject', effects: '#paneEffects', markers: '#paneMarkers' };
+    Object.keys(panes).forEach((k) => {
+      const el = $(panes[k]);
+      if (el) el.classList.toggle('hidden', k !== name);
+    });
+    if (name === 'markers') renderMarkers();
+  }
+
+  function setRightTab(name) {
+    S.rightTab = name;
+    document.querySelectorAll('[data-rtab]').forEach((b) => b.classList.toggle('active', b.dataset.rtab === name));
     if (controlsEl) controlsEl.classList.toggle('hidden', name !== 'controls');
-    if (libraryEl) libraryEl.classList.toggle('hidden', name !== 'effects');
+    if (infoEl) infoEl.classList.toggle('hidden', name !== 'metadata');
+    if (name === 'metadata') renderInfo();
+  }
+
+  // Accepts the names used by menus and shortcuts: controls | metadata | project | effects | markers.
+  function setPanel(name) {
+    if (name === 'controls' || name === 'metadata') setRightTab(name);
+    else setLeftTab(name);
+    S.panel = name;
+  }
+
+  /* ---------- markers list ---------- */
+
+  function renderMarkers() {
+    const body = $('#markersBody');
+    if (!body) return;
+    const count = $('#markerCount');
+    if (count) count.textContent = `${S.markers.length} marker${S.markers.length === 1 ? '' : 's'}`;
+    if (!S.markers.length) {
+      body.innerHTML = '<div class="hint">No markers yet. Press M or use the marker button to add one at the playhead.</div>';
+      return;
+    }
+    body.innerHTML = S.markers
+      .map(
+        (m) =>
+          `<div class="marker-row" data-marker="${m.id}" title="Click to go there. Double-click to rename.">` +
+          `<span class="mk"></span><span class="mt">${AVP.fmtTC(m.t)}</span>` +
+          `<span class="ml">${AVP.esc(m.label || 'Marker')}</span>` +
+          `<button class="btn tiny" data-rm="${m.id}" title="Delete marker">×</button></div>`
+      )
+      .join('');
+    body.querySelectorAll('.marker-row').forEach((row) => {
+      const marker = () => S.markers.find((x) => x.id === row.dataset.marker);
+      row.addEventListener('click', (e) => {
+        const rm = e.target.closest('[data-rm]');
+        if (rm) return AVP.edit.removeMarker(rm.dataset.rm);
+        const m = marker();
+        if (m) AVP.monitor.goTo(m.t);
+      });
+      row.addEventListener('dblclick', () => {
+        const m = marker();
+        if (!m) return;
+        AVP.dialog.form({
+          title: 'Marker name',
+          fields: [{ k: 'label', label: 'Name', type: 'text', value: m.label || '' }],
+          ok: 'Save',
+          onOk: (v) => {
+            AVP.pushUndo();
+            m.label = v.label;
+            AVP.refresh();
+          },
+        });
+      });
+    });
+  }
+
+  /* ---------- metadata ---------- */
+
+  function renderInfo() {
+    const body = $('#infoBody');
+    if (!body) return;
+    const c = AVP.selectedClips()[0];
+    const m = c ? AVP.findMedia(c.mediaId) : AVP.findMedia(S.binSelected);
+    if (!m) {
+      body.innerHTML = '<div class="hint">Select a clip on the timeline or a media item in the Project panel to see its metadata.</div>';
+      return;
+    }
+    const typeName = { video: 'Video', audio: 'Audio', image: 'Still image' }[m.type] || m.type;
+    const rows = [
+      ['File name', m.name],
+      ['Type', typeName],
+      ['Duration', AVP.fmtTC(m.duration)],
+      ['Frame size', m.width ? `${m.width} × ${m.height}` : '—'],
+      ['Audio', m.type === 'image' ? 'None' : m.hasAudio ? 'Yes' : 'No'],
+      ['File size', m.size ? (m.size / 1048576).toFixed(1) + ' MB' : '—'],
+      ['Status', m.offline ? 'Offline' : m.error ? 'Error' : 'Online'],
+    ];
+    if (c) {
+      rows.push(['Track', c.track], ['Clip start', AVP.fmtTC(c.start)], ['Clip duration', AVP.fmtTC(c.duration)], ['Source in', AVP.fmtTC(c.inPoint)], ['Speed', Math.round((c.speed || 1) * 100) + '%']);
+    }
+    body.innerHTML =
+      `<div class="fx-head"><div class="fx-name">${AVP.esc(m.name)}</div><div class="fx-sub">${c ? 'Clip metadata' : 'Media metadata'}</div></div>` +
+      '<table class="kb">' +
+      rows.map((r) => `<tr><td>${AVP.esc(r[0])}</td><td>${AVP.esc(r[1])}</td></tr>`).join('') +
+      '</table>';
+  }
+
+  // Refreshes the side lists that depend on the project (markers, metadata).
+  function renderSide() {
+    if (S.leftTab === 'markers') renderMarkers();
+    if (S.rightTab === 'metadata') renderInfo();
   }
 
   function init() {
     controlsEl = $('#fxBody');
+    infoEl = $('#infoBody');
     libraryEl = $('#libBody');
-    $('#tabControls').addEventListener('click', () => setPanel('controls'));
-    $('#tabEffects').addEventListener('click', () => setPanel('effects'));
-    setPanel(S.panel);
+    document.querySelectorAll('[data-ptab]').forEach((b) => b.addEventListener('click', () => setLeftTab(b.dataset.ptab)));
+    document.querySelectorAll('[data-rtab]').forEach((b) => b.addEventListener('click', () => setRightTab(b.dataset.rtab)));
+    setLeftTab(S.leftTab || 'project');
+    setRightTab(S.rightTab || 'controls');
     renderLibrary();
+    renderMarkers();
   }
 
   AVP.panels = {
     init,
     renderControls,
+    renderSide,
     renderLibrary,
+    renderMarkers,
+    renderInfo,
     setPanel,
     readParam,
   };

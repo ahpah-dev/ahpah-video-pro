@@ -47,6 +47,7 @@
 
   function refreshPanels() {
     AVP.panels.renderControls();
+    AVP.panels.renderSide();
     AVP.monitor.sync();
   }
 
@@ -377,6 +378,22 @@
     addAudioTrack: () => AVP.edit.addTrack('audio'),
     panelControls: () => AVP.panels.setPanel('controls'),
     panelEffects: () => AVP.panels.setPanel('effects'),
+    panelProject: () => AVP.panels.setPanel('project'),
+    panelMarkers: () => AVP.panels.setPanel('markers'),
+    panelMetadata: () => AVP.panels.setPanel('metadata'),
+    prevMarker: () => AVP.monitor.jumpEdit(-1),
+    nextMarker: () => AVP.monitor.jumpEdit(1),
+    clearMarkers: () => {
+      if (!S.markers.length) return AVP.toast('There are no markers');
+      AVP.pushUndo();
+      S.markers = [];
+      AVP.refresh();
+    },
+    wsEditing: () => setWorkspace('editing'),
+    wsAssembly: () => setWorkspace('assembly'),
+    wsEffects: () => setWorkspace('effects'),
+    wsColor: () => setWorkspace('color'),
+    wsAudio: () => setWorkspace('audio'),
     shortcuts: () => AVP.dialog.info('Keyboard shortcuts', shortcutsHtml()),
     about: () =>
       AVP.dialog.info(
@@ -437,6 +454,23 @@
       ],
     },
     {
+      label: 'Markers',
+      items: [
+        { label: 'Add Marker', key: 'M', action: 'addMarker' },
+        { label: 'Previous Marker', key: '↑', action: 'prevMarker' },
+        { label: 'Next Marker', key: '↓', action: 'nextMarker' },
+        { sep: true },
+        { label: 'Clear All Markers', action: 'clearMarkers' },
+      ],
+    },
+    {
+      label: 'Graphics',
+      items: [
+        { label: 'New Title…', key: 'Ctrl+T', action: 'newTitle' },
+        { label: 'Apply Default Transition', key: 'Ctrl+Shift+D', action: 'defaultTransition' },
+      ],
+    },
+    {
       label: 'Sequence',
       items: [
         { label: 'Sequence Settings…', action: 'sequence' },
@@ -468,8 +502,17 @@
     {
       label: 'Window',
       items: [
-        { label: 'Effect Controls', action: 'panelControls' },
+        { label: 'Project', action: 'panelProject' },
         { label: 'Effects', action: 'panelEffects' },
+        { label: 'Markers', action: 'panelMarkers' },
+        { label: 'Effect Controls', action: 'panelControls' },
+        { label: 'Metadata', action: 'panelMetadata' },
+        { sep: true },
+        { label: 'Editing workspace', action: 'wsEditing' },
+        { label: 'Assembly workspace', action: 'wsAssembly' },
+        { label: 'Effects workspace', action: 'wsEffects' },
+        { label: 'Color workspace', action: 'wsColor' },
+        { label: 'Audio workspace', action: 'wsAudio' },
       ],
     },
     {
@@ -639,6 +682,14 @@
       case 'H':
         AVP.timeline.setTool('hand');
         return;
+      case 'z':
+      case 'Z':
+        AVP.timeline.setTool('zoom');
+        return;
+      case 't':
+      case 'T':
+        AVP.timeline.setTool('type');
+        return;
       case 's':
       case 'S':
         toggleSnap();
@@ -727,6 +778,34 @@
 
   /* ---------- startup ---------- */
 
+  // Premiere-style workspaces. Each one arranges the same panels differently.
+  const WORKSPACES = {
+    learning: { name: 'Learning', available: false },
+    assembly: { name: 'Assembly', layout: 'ws-assembly', panel: 'project' },
+    editing: { name: 'Editing', layout: '', panel: 'project', right: 'controls' },
+    color: { name: 'Color', layout: 'ws-color', panel: 'project', right: 'controls' },
+    effects: { name: 'Effects', layout: 'ws-effects', panel: 'effects', right: 'controls' },
+    audio: { name: 'Audio', layout: 'ws-audio', panel: 'project', right: 'controls' },
+    graphics: { name: 'Graphics', available: false },
+    captions: { name: 'Captions', available: false },
+    libraries: { name: 'Libraries', available: false },
+  };
+
+  function setWorkspace(id) {
+    const ws = WORKSPACES[id];
+    if (!ws) return;
+    if (ws.available === false) return AVP.toast(`${ws.name} is not in this version yet`, 'warn');
+    S.workspace = id;
+    const layout = $('#layout');
+    layout.classList.remove('ws-editing', 'ws-assembly', 'ws-effects', 'ws-color', 'ws-audio');
+    if (id === 'editing') layout.classList.add('ws-editing');
+    if (ws.layout) layout.classList.add(ws.layout);
+    document.querySelectorAll('.wtab').forEach((b) => b.classList.toggle('active', b.dataset.ws === id));
+    if (ws.panel) AVP.panels.setPanel(ws.panel);
+    if (ws.right) AVP.panels.setPanel(ws.right);
+    AVP.timeline.render();
+  }
+
   function init() {
     document.querySelectorAll('[data-icon]').forEach(AVP.icons.apply);
     AVP.menu.init();
@@ -737,6 +816,8 @@
     AVP.timeline.init();
     AVP.monitor.init();
     AVP.panels.init();
+    AVP.meters.init();
+    document.querySelectorAll('.wtab').forEach((b) => b.addEventListener('click', () => setWorkspace(b.dataset.ws)));
 
     $('#btnExport').addEventListener('click', () => exportDialog());
     $('#pToStart').addEventListener('click', () => AVP.monitor.goTo(0));

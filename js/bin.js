@@ -257,7 +257,9 @@
         '<div class="bin-empty"><div class="big">Drop media here</div>' +
         '<div>or press <b>Ctrl+I</b> to import video, audio or images</div></div>';
     } else {
-      list.innerHTML = S.media
+      const q = (S.binQuery || '').trim().toLowerCase();
+      const shown = q ? S.media.filter((m) => m.name.toLowerCase().indexOf(q) >= 0) : S.media;
+      list.innerHTML = shown
         .map((m) => {
           const icon = m.type === 'audio' ? '&#9835;' : m.type === 'image' ? '&#9635;' : '&#9654;';
           const thumb = m.thumb ? `<img src="${m.thumb}" alt="">` : `<span class="bin-icon">${icon}</span>`;
@@ -276,7 +278,12 @@
         .join('');
     }
     const count = $('#binCount');
-    if (count) count.textContent = `${S.media.length} item${S.media.length === 1 ? '' : 's'}`;
+    if (count) {
+      const n = S.media.length;
+      count.textContent = `${n} item${n === 1 ? '' : 's'}`;
+    }
+    const rm = $('#btnRemoveMedia');
+    if (rm) rm.disabled = !AVP.findMedia(S.binSelected);
     const proj = $('#binProjName');
     if (proj) proj.textContent = S.projectName;
   }
@@ -456,12 +463,24 @@
     srcPlaceholder = $('#srcPlaceholder');
     srcPlay = $('#srcPlay');
 
+    $('#binSearch').addEventListener('input', (e) => {
+      S.binQuery = e.target.value;
+      renderBin();
+    });
+    $('#btnRemoveMedia').addEventListener('click', () => {
+      const m = AVP.findMedia(S.binSelected);
+      if (!m) return AVP.toast('Select a media item first', 'warn');
+      const used = S.clips.filter((c) => c.mediaId === m.id).length;
+      const msg = used ? ` It is used by ${used} clip${used > 1 ? 's' : ''} on the timeline; those clips will be removed too.` : '';
+      if (confirm(`Remove "${m.name}" from the project?${msg}`)) AVP.edit.removeMedia(m.id);
+    });
     const list = $('#binList');
     list.addEventListener('click', (e) => {
       const it = e.target.closest('.bin-item');
       if (!it) return;
       S.binSelected = it.dataset.media;
       renderBin();
+      if (AVP.panels) AVP.panels.renderSide();
     });
     list.addEventListener('dblclick', (e) => {
       const it = e.target.closest('.bin-item');
@@ -487,7 +506,7 @@
       }
     });
 
-    const panel = $('#binPanel');
+    const panel = $('#leftPanel');
     panel.addEventListener('dragover', (e) => {
       if (hasFiles(e)) {
         e.preventDefault();

@@ -5,8 +5,9 @@
 </p>
 
 **AhPah Video Pro** is a free, open-source video editor that runs in your web browser. It
-follows the familiar Premiere Pro style layout: a Project panel, Source and Program
-monitors, Effect Controls and a multi-track timeline. It has effects, transitions, titles,
+follows the Premiere Pro Editing layout: a menu bar and workspace tabs, a Project panel with
+Effects and Markers tabs, Source and Program monitors, Effect Controls and Metadata tabs,
+and a multi-track timeline with a tool palette and master meters. It has effects, transitions, titles,
 keyframes and export to WebM or MP4, with no installer and no server.
 
 It is released into the **public domain under the [Unlicense](LICENSE)**. Use it, change
@@ -47,6 +48,7 @@ it, sell it or bundle it however you like.
   the frame size, quality and range (whole sequence or work area). Export a single frame
   as PNG.
 - **Sequence settings**: frame size (HD, 4K, vertical, square) and frame rate.
+- **Workspaces**: Editing, Assembly, Effects, Color and Audio layouts (the other workspace tabs are placeholders).
 - **Context menus** on every area: clips, tracks, the ruler, markers, the Project panel,
   both monitors and the background.
 - **Projects** (`.ahpvp`): save and reopen timelines. The timeline is also autosaved in the
