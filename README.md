@@ -32,7 +32,7 @@ it, sell it or bundle it however you like.
   - Razor tool, ripple delete, copy / paste, duplicate, link / unlink and enable / disable.
   - Snapping to the playhead, clip edges and markers.
   - Markers (M), a work area (`[` and `]`) and rubber-band selection.
-  - Markers on a clip: split at every marker inside it, put a dissolve at each marker, or remove the markers in it. Use the clip menu (Markers on This Clip) or Clip > Split at Each Marker.
+  - Markers on a clip: right-click a clip and hover **Cut at Markers** to split at every marker inside it, put any transition at each marker (dissolve, dip, wipe and more), keep only the part between the first and last marker, or remove the markers. The same actions are in the Clip menu.
   - Undo and redo.
 - **Source monitor**: mark In and Out, then Insert (`,`) or Overwrite (`.`) at the playhead.
   Clips with sound place linked video and audio clips.

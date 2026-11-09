@@ -854,6 +854,19 @@
     }));
   }
 
+  // Marker actions for the clip menu and the Clip menu. getIds is read when an item is chosen.
+  function markerItems(getIds, audio) {
+    const transitions = audio
+      ? [{ label: 'Constant Gain (Audio Fade)', action: () => AVP.edit.transitionAtMarkers(getIds(), 'audio-fade') }]
+      : AVP.transitionsFor('video').map((k) => ({ label: AVP.TRANSITIONS[k].name, action: () => AVP.edit.transitionAtMarkers(getIds(), k) }));
+    return [
+      { label: 'Split at Each Marker', action: () => AVP.edit.splitAtMarkers(getIds()) },
+      { label: 'Transition at Each Marker', children: transitions },
+      { label: 'Keep Only Between First and Last Marker', action: () => AVP.edit.keepBetweenMarkers(getIds()) },
+      { label: 'Remove Markers in These Clips', action: () => AVP.edit.removeMarkersOn(getIds()) },
+    ];
+  }
+
   function clipMenu(c) {
     const m = AVP.findMedia(c.mediaId);
     const kind = S.tracks[c.track].kind;
@@ -867,6 +880,7 @@
     const hasEnd = !!(S.clips.find((o) => o.track === c.track && Math.abs(o.start - AVP.clipEnd(c)) < EPS) || {}).transIn || !!c.transOut;
     const items = [
       { label: 'Cut at Playhead', key: 'Ctrl+K', action: () => AVP.edit.splitAtPlayhead() },
+      { label: 'Cut at Markers', children: markerItems(() => targets, kind === 'audio') },
       { label: 'Copy', key: 'Ctrl+C', action: () => AVP.edit.copySelection() },
       { label: 'Paste at Playhead', key: 'Ctrl+V', action: () => AVP.edit.paste(S.playhead, 'overwrite') },
       { label: 'Duplicate', key: 'Ctrl+D', action: () => AVP.edit.duplicate() },
@@ -878,11 +892,6 @@
       { label: c.enabled ? 'Disable Clip' : 'Enable Clip', action: () => AVP.edit.toggleEnabled(ids) },
       { label: 'Link Selected', disabled: !many, action: () => AVP.edit.link(ids) },
       { label: 'Unlink', disabled: !hasPartner && !c.linkId, action: () => AVP.edit.unlink(ids) },
-      { label: 'Markers on This Clip', children: [
-        { label: 'Split at Each Marker', action: () => AVP.edit.splitAtMarkers(targets) },
-        { label: 'Dissolve at Each Marker', action: () => AVP.edit.transitionAtMarkers(targets, 'dissolve') },
-        { label: 'Remove Markers in This Clip', action: () => AVP.edit.removeMarkersOn(targets) },
-      ] },
       { sep: true },
       {
         label: 'Effects',
@@ -1052,5 +1061,6 @@
     updateToolbar,
     rulerMenu,
     gotoMarker,
+    markerItems,
   };
 })();

@@ -141,6 +141,14 @@ test('removing markers on a clip removes only those inside it', () => {
   S.markers = [];
 });
 
+test('keeping the part between the first and last marker trims the clip and its linked audio', () => {
+  reset([clip('V1', 0, 10, 'L', 0), clip('A1', 0, 10, 'L', 0)]);
+  S.markers = [{ id: 'm1', t: 2 }, { id: 'm2', t: 6 }];
+  E.keepBetweenMarkers([S.clips[0].id]);
+  assert.strictEqual(describe(), 'A1 2-6 | V1 2-6');
+  S.markers = [];
+});
+
 test('partners are clips with the same link that overlap in time', () => {
   reset([clip('V1', 0, 4, 'L', 0), clip('A1', 0, 4, 'L', 0), clip('A1', 6, 2, 'L', 0), clip('A2', 0, 4, null, 0)]);
   const v = S.clips[0];

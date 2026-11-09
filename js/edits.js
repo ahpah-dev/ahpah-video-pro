@@ -433,6 +433,33 @@
       return hit.size;
     },
 
+    // Keeps only the part of each selected clip between its first and last marker. Linked audio is
+    // trimmed the same way. One undo step.
+    keepBetweenMarkers(ids) {
+      const plans = [];
+      ids.map(AVP.findClip).filter(Boolean).forEach((c) => {
+        const ts = E.markersOnClip(c);
+        if (ts.length < 2) return;
+        const a = ts[0];
+        const b = ts[ts.length - 1];
+        [c].concat(AVP.partners(c)).forEach((g) => {
+          if (S.tracks[g.track].locked) return;
+          const end = g.start + g.duration;
+          if (g.start < a - EPS) plans.push([g.track, g.start, a]);
+          if (end > b + EPS) plans.push([g.track, b, end]);
+        });
+      });
+      if (!plans.length) {
+        AVP.toast('Need two markers inside the selected clip', 'warn');
+        return 0;
+      }
+      AVP.pushUndo();
+      plans.forEach(([track, from, to]) => E.clearRange(track, from, to));
+      AVP.refresh();
+      AVP.toast('Kept the part between the first and last marker', 'ok');
+      return plans.length;
+    },
+
     toggleEnabled(ids) {
       const list = ids.map(AVP.findClip).filter(Boolean);
       if (!list.length) return;

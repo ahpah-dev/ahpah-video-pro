@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.15.0
+
+### Marker actions, easier to find
+- Right-click a clip and hover **Cut at Markers**. It sits directly under Cut at Playhead and opens a
+  side menu with the marker actions.
+- **Transition at Each Marker** lists every transition (cross dissolve, dip, wipes, slides, zoom, spin,
+  iris and more), and puts the one you pick at each marker. Audio clips get a fade.
+- **Keep Only Between First and Last Marker** trims the clip, and its linked audio, to the part between
+  its first and last markers.
+- **Split at Each Marker** and **Remove Markers in These Clips** work as before.
+- The Clip menu has the same actions under Cut at Markers.
+- Each action is one undo step.
+
 ## 1.14.0
 
 ### Markers on a clip
