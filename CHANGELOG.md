@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.21.0
+
+### Export: stutter reporting
+- The export counts frames that were captured late. While it runs, the overlay warns when more than a
+  tenth of the frames are late, and suggests a smaller frame size. The final message reports how many
+  frames were late.
+- A normal-speed export reports nothing. A slow computer is now told why its export stutters.
+
+### Known limit
+- Exports run in real time. A slow computer cannot capture 1080p frames as fast as they are due, so the
+  picture can stutter, and the sound can sit slightly behind the picture (about 20 ms normally, more on a
+  busy computer). A smaller frame size reduces the load. A fully smooth export on any computer needs an
+  offline renderer that draws each frame at its own pace, which is planned but not in this version.
+
 ## 1.20.0
 
 ### Export

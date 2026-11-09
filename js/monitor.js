@@ -549,7 +549,11 @@
     const fill = $('#exportFill');
     const text = $('#exportText');
     if (fill) fill.style.width = pct.toFixed(1) + '%';
-    if (text) text.textContent = `Exporting… ${Math.round(pct)}%  (Esc to stop)`;
+    let note = '';
+    if (frameStats.ticks > 40 && frameStats.late / frameStats.ticks > 0.1) {
+      note = ' · stuttering: this computer is busy. For smooth output, export at a smaller frame size';
+    }
+    if (text) text.textContent = `Exporting… ${Math.round(pct)}%  (Esc to stop)${note}`;
   }
 
   /*
@@ -567,6 +571,8 @@
   let notReadySince = 0; // when the media first stopped being ready (0 when it is ready)
   let recStarted = false;
   let recError = null;
+  // How evenly the frames are being captured. A frame more than half a frame late counts as late.
+  let frameStats = { ticks: 0, late: 0, lastAt: 0, worstMs: 0 };
 
   // A ticker that keeps running in background tabs. Falls back to setInterval if workers cannot run.
   function createTicker(ms, onTick) {
@@ -688,6 +694,14 @@
   function exportTick() {
     if (!S.exporting || !recStarted) return;
     const now = performance.now();
+    const frameMs = 1000 / Math.max(1, S.fps);
+    if (frameStats.lastAt) {
+      const gap = now - frameStats.lastAt;
+      frameStats.ticks += 1;
+      if (gap > frameMs * 1.5) frameStats.late += 1;
+      frameStats.worstMs = Math.max(frameStats.worstMs, gap);
+    }
+    frameStats.lastAt = now;
     const t = Math.min(exportEnd, exportStart + (now - exportClock0) / 1000);
     S.playhead = t;
     sync();
@@ -771,6 +785,7 @@
     recChunks = [];
     recStarted = false;
     recError = null;
+    frameStats = { ticks: 0, late: 0, lastAt: 0, worstMs: 0 };
     recorder.ondataavailable = (ev) => {
       if (ev.data && ev.data.size) recChunks.push(ev.data);
     };
@@ -791,7 +806,9 @@
         const mb = (blob.size / (1024 * 1024)).toFixed(1);
         if (recError) AVP.toast(`Export stopped early (${recError}). Saved ${ext.toUpperCase()}, ${mb} MB.`, 'warn');
         else if (note) AVP.toast(`Saved ${ext.toUpperCase()}, ${mb} MB. ${note}`, 'warn');
-        else AVP.toast(`Export saved as ${ext.toUpperCase()}, ${mb} MB`, 'ok');
+        else if (frameStats.ticks && frameStats.late / frameStats.ticks > 0.05) {
+          AVP.toast(`Export saved as ${ext.toUpperCase()}, ${mb} MB. ${frameStats.late} of ${frameStats.ticks} frames were late, so it may stutter. Export at a smaller frame size for smooth output.`, 'warn');
+        } else AVP.toast(`Export saved as ${ext.toUpperCase()}, ${mb} MB`, 'ok');
       };
       if (!blob.size) return AVP.toast('The export produced no data. Try again, or choose another format.', 'error');
       if (recError) return save();
