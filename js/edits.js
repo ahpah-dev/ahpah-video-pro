@@ -615,6 +615,7 @@
       S.selection = S.selection.filter((cid) => AVP.findClip(cid));
       S.media = S.media.filter((x) => x.id !== id);
       if (m.url) URL.revokeObjectURL(m.url);
+      if (AVP.mediaStore) AVP.mediaStore.remove(id);
       if (S.srcMediaId === id) S.srcMediaId = null;
       AVP.refresh();
       AVP.bin.renderBin();

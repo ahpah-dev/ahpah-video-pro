@@ -235,6 +235,7 @@
       if (offline) {
         offline.url = URL.createObjectURL(f);
         offline.offline = false;
+        AVP.mediaStore.put(offline.id, f, type);
         count++;
         jobs.push(probe(offline).then(() => decodeWave(offline, f)));
         continue;
@@ -256,6 +257,7 @@
         offline: false,
       };
       S.media.push(media);
+      AVP.mediaStore.put(media.id, f, type);
       count++;
       jobs.push(probe(media).then(() => decodeWave(media, f)));
     }
@@ -265,6 +267,20 @@
       Promise.all(jobs).then(renderBin);
     }
     return count;
+  }
+
+  // Gives an offline media item its file: from storage on recovery or reopening, or a file picked by the user.
+  function relink(media, f) {
+    media.url = URL.createObjectURL(f);
+    media.offline = false;
+    media.size = f.size;
+    renderBin();
+    return probe(media)
+      .then(() => decodeWave(media, f))
+      .then(() => {
+        renderBin();
+        AVP.refresh();
+      });
   }
 
   function renderBin() {
@@ -601,5 +617,6 @@
     togglePlay,
     updateSourceUI,
     mediaMenu,
+    relink,
   };
 })();

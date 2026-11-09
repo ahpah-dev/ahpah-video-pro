@@ -79,8 +79,9 @@ it, sell it or bundle it however you like.
 - **Design**: a flat dark theme close to Premiere Pro, with strong custom sliders, checkboxes, selects and buttons, LCD-style timecode, collapsible Lumetri sections, and vertical mixer faders.
 - **Context menus** on every area: clips, tracks, the ruler, markers, the Project panel,
   both monitors and the background.
-- **Projects** (`.ahpvp`): save and reopen timelines. The timeline is also autosaved in the
-  browser, and you are offered recovery when you reopen the app.
+- **Projects** (`.ahpvp`): save and reopen timelines. The timeline and every imported file are kept in
+  the browser, so Recover after a reload brings back the clips, markers and media. A project opened on
+  another computer needs its files imported again.
 
 ## Getting started
 

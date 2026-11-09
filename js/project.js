@@ -1,7 +1,8 @@
 /*
  * AhPah Video Pro - project files (.ahpvp), autosave and recovery.
- * Project files hold the timeline and settings, not the media itself. Media is matched by
- * file name when a project is opened, and offline items can be re-imported to relink.
+ * Project files hold the timeline and settings. The media files are kept in this browser's storage
+ * (js/media-store.js) when they are imported, so a recovered project gets its media back. A project
+ * opened from another computer, or media that was removed from storage, needs its files imported again.
  */
 (function () {
   'use strict';
@@ -33,17 +34,38 @@
       workOut: S.workOut,
       media: S.media.map(mediaMeta),
       fonts: AVP.customFonts,
+      captionStyle: AVP.captionStyle,
       savedAt: new Date().toISOString(),
     };
   }
 
-  // Replaces the open project with data from a parsed file.
+  // Gives offline media their files back from this browser's storage. Returns how many came back.
+  function restoreMedia() {
+    const offline = S.media.filter((m) => m.offline);
+    if (!offline.length || !AVP.mediaStore) return Promise.resolve({ restored: 0, missing: offline.length });
+    return Promise.all(
+      offline.map((m) =>
+        AVP.mediaStore.find(m.id, m.name, m.type).then((file) => {
+          if (!file) return false;
+          AVP.bin.relink(m, file);
+          return true;
+        })
+      )
+    ).then((flags) => {
+      const restored = flags.filter(Boolean).length;
+      AVP.refresh();
+      return { restored, missing: offline.length - restored };
+    });
+  }
+
+  // Replaces the open project with data from a parsed file. Resolves when the media is back.
   function apply(data) {
     if (!data || data.format !== 'ahpvp' || !Array.isArray(data.clips)) {
       throw new Error('Not an AhPah Video Pro project');
     }
     const old = S.media;
     AVP.restoreCustomFonts(data.fonts);
+    if (data.captionStyle) Object.assign(AVP.captionStyle, data.captionStyle);
     S.projectName = data.name || 'Untitled Project';
     S.fps = data.fps || 30;
     S.seqWidth = data.width || 1920;
@@ -79,13 +101,26 @@
     AVP.resetHistory();
     AVP.refresh();
     AVP.bin.renderBin();
-    return S.media.filter((m) => m.offline).length;
+    return restoreMedia();
+  }
+
+  // Says what came back, in one toast.
+  function reportOpen(result, opened) {
+    const { restored, missing } = result;
+    if (missing) {
+      AVP.toast(
+        `${opened}. ${missing} media file${missing > 1 ? 's are' : ' is'} still offline: import ${missing > 1 ? 'them' : 'it'} again with the same file name.`,
+        'warn'
+      );
+    } else {
+      AVP.toast(restored ? `${opened}. ${restored} media file${restored > 1 ? 's' : ''} restored.` : opened, 'ok');
+    }
   }
 
   function save() {
     AVP.dialog.form({
       title: 'Save project',
-      intro: 'Media files are not stored in the project. Keep them where they are so they can be found again.',
+      intro: 'The project file keeps the timeline and settings. Media is kept in this browser, so it can be restored here.',
       fields: [{ k: 'name', label: 'Project name', type: 'text', value: S.projectName }],
       ok: 'Save',
       onOk: (v) => {
@@ -101,17 +136,14 @@
   function openFile(file) {
     const reader = new FileReader();
     reader.onload = () => {
+      let pending;
       try {
-        const missing = apply(JSON.parse(reader.result));
-        AVP.toast(
-          missing
-            ? `${missing} media file${missing > 1 ? 's are' : ' is'} offline. Import them again with the same file name.`
-            : 'Project opened',
-          missing ? 'warn' : 'ok'
-        );
+        pending = apply(JSON.parse(reader.result));
       } catch (err) {
         AVP.toast(err.message || 'Could not open this project', 'error');
+        return;
       }
+      pending.then((r) => reportOpen(r, 'Project opened'));
     };
     reader.readAsText(file);
   }
@@ -140,17 +172,23 @@
     } catch (err) {
       data = null;
     }
-    if (!data || !data.clips || !data.clips.length) return;
+    if (!data || !((data.clips && data.clips.length) || (data.media && data.media.length))) return;
     const when = data.savedAt ? new Date(data.savedAt).toLocaleString() : 'earlier';
     AVP.dialog.form({
       title: 'Recover unsaved project?',
-      intro: `An autosaved version of "${data.name || 'Untitled Project'}" from ${when} was found. Media files must be imported again with the same names.`,
+      intro: `An autosaved version of "${data.name || 'Untitled Project'}" from ${when} was found. Its media is restored from this browser's storage.`,
       fields: [],
       ok: 'Recover',
       cancel: 'Start new',
       onOk: () => {
-        const missing = apply(data);
-        AVP.toast(missing ? `Recovered. Import ${missing} offline file${missing > 1 ? 's' : ''} to relink.` : 'Project recovered', 'ok');
+        let pending;
+        try {
+          pending = apply(data);
+        } catch (err) {
+          AVP.toast('The autosaved project could not be read', 'error');
+          return;
+        }
+        pending.then((r) => reportOpen(r, 'Project recovered'));
       },
     });
   }

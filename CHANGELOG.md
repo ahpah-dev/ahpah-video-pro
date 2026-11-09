@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.16.0
+
+### Recovery
+- Recover now brings back the whole project, including the media. Before, the clips came back but every
+  media file was offline, so there was no picture or sound until you imported the files again.
+- Each imported file is kept in this browser's storage (IndexedDB). A recovered or reopened project gets
+  its media back from there, and the thumbnails and waveforms are rebuilt.
+- The recovery prompt also appears when only media is in the project, not only when there are clips.
+- The caption style is saved with the project, so captions keep their look after recovery.
+- The message after recovering or opening a project says how many media files were restored. Files still
+  missing are named, with the advice to import them again.
+- Removing a media item also removes its stored copy.
+
+### Limits
+- Storage is the browser's, so it depends on how much space the browser allows for this site. If storage
+  is full, the editor says the file will need importing again after a reload.
+- A project opened on another computer has no stored media there. Import its files again with the same
+  names.
+
 ## 1.15.0
 
 ### Marker actions, easier to find
