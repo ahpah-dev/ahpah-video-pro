@@ -103,7 +103,7 @@
 
   function clipHtml(c, list) {
     const m = AVP.findMedia(c.mediaId);
-    const kind = c.kind === 'title' ? 'title' : m ? m.type : 'video';
+    const kind = c.kind === 'shape' ? 'shape' : c.kind === 'title' ? 'title' : m ? m.type : 'video';
     const cls = [
       'clip',
       kind,
@@ -124,7 +124,7 @@
       wave = ' wv-' + m.id;
       style += `background-size:${full}px 100%;background-position:${-(c.inPoint / sp) * S.zoom}px 0;`;
     }
-    let label = kind === 'title' ? c.text.text.split('\n')[0] || 'Title' : m ? m.name : 'Missing media';
+    let label = kind === 'title' ? c.text.text.split('\n')[0] || 'Title' : kind === 'shape' ? (c.shape.type === 'ellipse' ? 'Ellipse' : 'Rectangle') : m ? m.name : 'Missing media';
     if (c.speed && c.speed !== 1) label += `  ${Math.round(c.speed * 100)}%`;
     if (c.fx && c.fx.length) label += `  fx${c.fx.length}`;
     const name = m ? m.name : c.kind === 'title' ? 'Title' : 'Missing media';

@@ -101,39 +101,68 @@
 
   // Source for the compositor: video element or still image for a media clip.
   function getSource(c) {
-    if (c.kind === 'title') return null;
+    if (c.kind !== 'media') return null;
     return ensureNode(c);
   }
 
-  // One bus per track: volume (the mixer fader), a meter, and the way to master and export.
+  // Reverb room, shared by every send: a synthetic impulse response (see js/loudness.js).
+  let aux = null;
+  function auxInput() {
+    if (!audioCtx) return null;
+    if (!aux) {
+      const input = audioCtx.createGain();
+      const conv = audioCtx.createConvolver();
+      const ir = AVP.loudness.roomImpulse(audioCtx.sampleRate, 1.6, 3.5);
+      const buf = audioCtx.createBuffer(2, ir.left.length, audioCtx.sampleRate);
+      buf.getChannelData(0).set(ir.left);
+      buf.getChannelData(1).set(ir.right);
+      conv.buffer = buf;
+      input.connect(conv);
+      conv.connect(masterGain || audioCtx.destination);
+      if (streamDest) conv.connect(streamDest);
+      aux = { input };
+    }
+    return aux.input;
+  }
+
+  // One bus per track: fader (volume), pan, a send to the room, and a meter. Every clip on the
+  // track feeds the bus, and the bus feeds the master output, the meter and the export.
   const buses = new Map();
   function trackBus(id) {
     if (!audioCtx) return null;
     let b = buses.get(id);
     if (!b) {
       const input = audioCtx.createGain();
+      const pan = audioCtx.createStereoPanner();
+      const send = audioCtx.createGain();
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 1024;
-      input.connect(masterGain || audioCtx.destination);
-      if (streamDest) input.connect(streamDest);
-      input.connect(analyser);
-      b = { input, analyser };
+      input.connect(pan);
+      pan.connect(masterGain || audioCtx.destination);
+      if (streamDest) pan.connect(streamDest);
+      pan.connect(analyser);
+      input.connect(send);
+      send.connect(auxInput());
+      b = { input, pan, send, analyser };
       buses.set(id, b);
     }
     return b;
   }
 
-  // Keeps a clip's gain connected to the bus of the track it is on.
+  // Keeps a clip's gain connected to its track's bus, and to its own reverb send.
   function connectBus(n, c) {
     if (!n.gain) return;
     const bus = trackBus(c.track);
     if (!bus || n.bus === bus) return;
-    if (n.bus) n.gain.disconnect();
+    n.gain.disconnect();
     n.gain.connect(bus.input);
+    if (!n.send) n.send = audioCtx.createGain();
+    n.gain.connect(n.send);
+    n.send.connect(auxInput());
     n.bus = bus;
   }
 
-  // Essential Sound: applies the clip's low cut, presence and compression to its nodes.
+  // Essential Sound: low cut, presence, compression and reverb send for a clip's nodes.
   function applySound(n, c) {
     if (!n.hp) return;
     const snd = AVP.soundOf(c);
@@ -149,24 +178,64 @@
       n.comp.threshold.value = 0;
       n.comp.ratio.value = 1;
     }
+    if (n.send) n.send.gain.value = snd.enabled ? AVP.clamp((snd.reverb || 0) / 100, 0, 1) * 0.8 : 0;
   }
 
-  // Track faders (dB) into the buses. Runs every tick, so mixer moves are heard at once.
+  // Mixer value for a track at absolute time t: the static setting, or keyframes when automated.
+  function trackParam(id, key, t) {
+    const tr = S.tracks[id];
+    if (!tr) return 0;
+    const base = tr[key] == null ? 0 : tr[key];
+    return AVP.evalKeys(tr.keys && tr.keys[key], t, base);
+  }
+
+  // Track faders, pan and sends into the buses. Runs every tick, so automation plays back.
   function syncBuses() {
     if (!audioCtx) return;
+    const t = S.playhead;
     Object.keys(S.tracks).forEach((id) => {
       const b = trackBus(id);
-      if (b) b.input.gain.value = Math.pow(10, (S.tracks[id].volume || 0) / 20);
+      if (!b) return;
+      b.input.gain.value = Math.pow(10, trackParam(id, 'volume', t) / 20);
+      b.pan.pan.value = AVP.clamp(trackParam(id, 'pan', t) / 100, -1, 1);
+      b.send.gain.value = AVP.clamp(trackParam(id, 'send', t) / 100, 0, 1);
     });
   }
 
-  // Essential Sound loudness match: moves the clip towards its target RMS level.
+  // Essential Sound loudness match: moves the clip towards its target LUFS.
   function autoGain(c) {
     const snd = AVP.soundOf(c);
     if (!snd.enabled || !snd.autoMatch) return 1;
     const m = AVP.findMedia(c.mediaId);
-    if (!m || m.rmsDb == null) return 1;
-    return Math.pow(10, AVP.clamp(snd.target - m.rmsDb, -12, 12) / 20);
+    if (!m || m.lufs == null) return 1;
+    return Math.pow(10, AVP.clamp(snd.target - m.lufs, -12, 12) / 20);
+  }
+
+  // Essential Sound noise reduction: a gate that closes between speech. The threshold sits above
+  // the clip's measured noise floor, and the gate attenuates by up to 40 dB when it closes.
+  function gateFactor(c, t) {
+    const snd = AVP.soundOf(c);
+    if (!snd.enabled || !(snd.noiseReduce > 0)) return 1;
+    const m = AVP.findMedia(c.mediaId);
+    if (!m || !m.env) return 1;
+    const src = c.inPoint + Math.max(0, t - c.start) * (c.speed || 1);
+    const idx = AVP.clamp(Math.floor(src / m.env.hop), 0, m.env.env.length - 1);
+    const level = m.env.env[idx];
+    const k = snd.noiseReduce / 100;
+    const threshold = m.env.floor + k * 25;
+    return level >= threshold ? 1 : Math.pow(10, (-k * 40) / 20);
+  }
+
+  // Dialogue ducking: a clip with a duck setting is lowered while any dialogue clip is playing.
+  function duckFactor(c, t) {
+    const snd = AVP.soundOf(c);
+    if (!snd.enabled || !(snd.duck > 0) || snd.type === 'dialogue') return 1;
+    const talking = S.clips.some((o) => {
+      if (!o.enabled || AVP.trackKind(o.track) !== 'audio') return false;
+      const s = AVP.soundOf(o);
+      return s.enabled && s.type === 'dialogue' && t >= o.start && t < o.start + o.duration;
+    });
+    return talking ? Math.pow(10, -snd.duck / 20) : 1;
   }
 
   function hasLinkedAudio(c) {
@@ -181,7 +250,7 @@
     if (tr.kind === 'audio' && !tr.solo && Object.keys(S.tracks).some((id) => S.tracks[id].kind === 'audio' && S.tracks[id].solo)) return 0;
     const m = AVP.findMedia(c.mediaId);
     if (m && m.type === 'video' && tr.kind === 'video' && hasLinkedAudio(c)) return 0;
-    return Math.max(0, (AVP.propAt(c, 'volume', t) / 100) * AVP.audioRamp(R, t) * autoGain(c));
+    return Math.max(0, (AVP.propAt(c, 'volume', t) / 100) * AVP.audioRamp(R, t) * autoGain(c) * gateFactor(c, t) * duckFactor(c, t));
   }
 
   function cleanupNodes() {
@@ -195,6 +264,7 @@
         n.el.load();
       }
       if (n.gain) n.gain.disconnect();
+      if (n.send) n.send.disconnect();
       if (n.comp) n.comp.disconnect();
       if (n.eq) n.eq.disconnect();
       if (n.hp) n.hp.disconnect();
@@ -233,11 +303,11 @@
 
     for (const { c, R, track } of activeAt(t)) {
       activeIds.add(c.id);
-      if (c.kind === 'title') continue;
+      if (c.kind !== 'media') continue;
       const n = ensureNode(c);
       if (!n) continue;
       if (n.gain) {
-        n.gain.gain.value = gainFor(c, R, t);
+        n.gain.gain.setTargetAtTime(gainFor(c, R, t), audioCtx.currentTime, 0.03);
         connectBus(n, c);
         applySound(n, c);
       }
@@ -601,6 +671,7 @@
     markDirty,
     getSource,
     audioContext: () => audioCtx,
+    trackParam: (id, key, t) => trackParam(id, key, t),
     masterAnalyser: () => masterAnalyser,
     trackAnalyser: (id) => {
       const b = trackBus(id);

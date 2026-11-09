@@ -39,6 +39,7 @@
         <button class="ptab active" id="tabProject" data-ptab="project">Project: <b id="binProjName">Untitled Project</b></button>
         <button class="ptab" id="tabEffectsLib" data-ptab="effects">Effects</button>
         <button class="ptab" id="tabMarkers" data-ptab="markers">Markers</button>
+        <button class="ptab" id="tabGraphics" data-ptab="graphics">Graphics</button>
       </div>
 
       <div class="pane" id="paneProject">
@@ -57,6 +58,10 @@
 
       <div class="pane hidden" id="paneEffects">
         <div class="lib-body" id="libBody"></div>
+      </div>
+
+      <div class="pane hidden" id="paneGraphics">
+        <div class="list-body" id="graphicsBody"></div>
       </div>
 
       <div class="pane hidden" id="paneMarkers">
@@ -209,6 +214,8 @@
   <script src="js/state.js"></script>
   <script src="js/effects.js"></script>
   <script src="js/edits.js"></script>
+  <script src="js/color.js"></script>
+  <script src="js/loudness.js"></script>
   <script src="js/gpu.js"></script>
   <script src="js/render.js"></script>
   <script src="js/monitor.js"></script>
@@ -216,6 +223,7 @@
   <script src="js/menu.js"></script>
   <script src="js/dialog.js"></script>
   <script src="js/panels.js"></script>
+  <script src="js/lumetri-ui.js"></script>
   <script src="js/timeline.js"></script>
   <script src="js/meters.js"></script>
   <script src="js/project.js"></script>

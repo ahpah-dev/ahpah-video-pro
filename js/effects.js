@@ -116,6 +116,24 @@
         { k: 'tint', label: 'Tint', min: -100, max: 100, def: 0 },
         { k: 'vibrance', label: 'Vibrance', min: -100, max: 100, def: 0 },
         { k: 'fade', label: 'Faded film', min: 0, max: 100, def: 0, unit: '%' },
+        { k: 'sharpen', label: 'Sharpen', min: 0, max: 100, def: 0, unit: '%' },
+        { k: 'sx', label: 'Shadow wheel X', min: -100, max: 100, def: 0 },
+        { k: 'sy', label: 'Shadow wheel Y', min: -100, max: 100, def: 0 },
+        { k: 'sl', label: 'Shadow level', min: -100, max: 100, def: 0 },
+        { k: 'mx', label: 'Midtone wheel X', min: -100, max: 100, def: 0 },
+        { k: 'my', label: 'Midtone wheel Y', min: -100, max: 100, def: 0 },
+        { k: 'ml', label: 'Midtone level', min: -100, max: 100, def: 0 },
+        { k: 'hx', label: 'Highlight wheel X', min: -100, max: 100, def: 0 },
+        { k: 'hy', label: 'Highlight wheel Y', min: -100, max: 100, def: 0 },
+        { k: 'hl', label: 'Highlight level', min: -100, max: 100, def: 0 },
+        { k: 'hslOn', label: 'HSL secondary on', min: 0, max: 1, def: 0 },
+        { k: 'hslHue', label: 'HSL hue', min: 0, max: 360, def: 0, unit: '°' },
+        { k: 'hslRange', label: 'HSL range', min: 0, max: 100, def: 30, unit: '%' },
+        { k: 'hslSoft', label: 'HSL softness', min: 0, max: 100, def: 20, unit: '%' },
+        { k: 'hslShift', label: 'HSL hue shift', min: -180, max: 180, def: 0, unit: '°' },
+        { k: 'hslSat', label: 'HSL saturation', min: -100, max: 100, def: 0 },
+        { k: 'hslLum', label: 'HSL luminance', min: -100, max: 100, def: 0 },
+        { k: 'lutAmount', label: 'LUT strength', min: 0, max: 100, def: 100, unit: '%' },
       ],
     },
     flip: {
@@ -197,6 +215,13 @@
     },
   ];
 
+  /* ---------- shapes (Essential Graphics) ---------- */
+
+  // Shape clips are drawn in the frame. Width and height are percentages of the frame.
+  AVP.defaultShape = function (type) {
+    return { type: type || 'rect', fill: '#4ea1ff', stroke: '#000000', strokeWidth: 0, width: 40, height: 20, radius: 0 };
+  };
+
   /* ---------- clip model ---------- */
 
   AVP.cloneClip = function (c, overrides) {
@@ -242,6 +267,7 @@
     out.fx = out.fx || [];
     out.speed = out.speed || 1;
     if (out.kind === 'title') out.text = Object.assign({}, AVP.TEXT_DEFAULTS, out.text || {});
+    if (out.kind === 'shape') out.shape = Object.assign(AVP.defaultShape(), out.shape || {});
     return out;
   };
 
@@ -531,26 +557,47 @@
   };
   /* ---------- Essential Sound ---------- */
 
-  // Each audio type sets a starting point. Values are in the clip's sound settings.
+  // Each audio type sets a starting point. Targets are integrated loudness in LUFS (BS.1770).
   AVP.SOUND_PRESETS = {
-    dialogue: { label: 'Dialogue', lowCut: 90, presence: 4, compress: true, target: -18 },
-    music: { label: 'Music', lowCut: 40, presence: 0, compress: false, target: -22 },
-    sfx: { label: 'Sound Effects', lowCut: 60, presence: 2, compress: false, target: -16 },
-    ambience: { label: 'Ambience', lowCut: 50, presence: -2, compress: false, target: -26 },
+    dialogue: { label: 'Dialogue', lowCut: 90, presence: 4, compress: true, target: -16, duck: 0 },
+    music: { label: 'Music', lowCut: 40, presence: 0, compress: false, target: -20, duck: 6 },
+    sfx: { label: 'Sound Effects', lowCut: 60, presence: 2, compress: false, target: -16, duck: 0 },
+    ambience: { label: 'Ambience', lowCut: 50, presence: -2, compress: false, target: -24, duck: 4 },
   };
 
   // Settings for a clip's sound. Clips without any change get neutral settings.
+  //   lowCut (Hz), presence (dB), compress, target (LUFS), autoMatch (loudness match on/off),
+  //   noiseReduce (0..100, a gate that closes between speech), reverb (0..100, a send to a room),
+  //   duck (dB to lower this clip while any dialogue clip plays).
   AVP.soundOf = function (c) {
     return Object.assign(
-      { type: 'dialogue', enabled: true, autoMatch: false, lowCut: 20, presence: 0, compress: false, target: -18 },
+      {
+        type: 'dialogue',
+        enabled: true,
+        autoMatch: false,
+        lowCut: 20,
+        presence: 0,
+        compress: false,
+        target: -16,
+        noiseReduce: 0,
+        reverb: 0,
+        duck: 0,
+      },
       c.sound || {}
     );
   };
 
-  // Applies a preset, keeping the enabled and loudness-match choices.
+  // Applies a preset, keeping the enabled, loudness-match, noise, reverb choices.
   AVP.applySoundPreset = function (c, type) {
     const p = AVP.SOUND_PRESETS[type] || AVP.SOUND_PRESETS.dialogue;
     const cur = AVP.soundOf(c);
-    c.sound = Object.assign({}, cur, { type, lowCut: p.lowCut, presence: p.presence, compress: p.compress, target: p.target });
+    c.sound = Object.assign({}, cur, {
+      type,
+      lowCut: p.lowCut,
+      presence: p.presence,
+      compress: p.compress,
+      target: p.target,
+      duck: p.duck,
+    });
   };
 })();

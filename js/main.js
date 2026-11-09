@@ -381,6 +381,9 @@
     panelProject: () => AVP.panels.setPanel('project'),
     panelMarkers: () => AVP.panels.setPanel('markers'),
     panelMetadata: () => AVP.panels.setPanel('metadata'),
+    panelGraphics: () => AVP.panels.setPanel('graphics'),
+    newRectangle: () => AVP.edit.placeShape({ track: S.target.video, start: S.playhead, type: 'rect', mode: 'overwrite' }),
+    newEllipse: () => AVP.edit.placeShape({ track: S.target.video, start: S.playhead, type: 'ellipse', mode: 'overwrite' }),
     panelLumetri: () => AVP.panels.setPanel('lumetri'),
     panelSound: () => AVP.panels.setPanel('sound'),
     panelMixer: () => AVP.panels.setPanel('mixer'),
@@ -473,6 +476,10 @@
       items: [
         { label: 'New Title…', key: 'Ctrl+T', action: 'newTitle' },
         { label: 'Apply Default Transition', key: 'Ctrl+Shift+D', action: 'defaultTransition' },
+        { sep: true },
+        { label: 'New Rectangle', action: 'newRectangle' },
+        { label: 'New Ellipse', action: 'newEllipse' },
+        { label: 'Essential Graphics panel', action: 'panelGraphics' },
       ],
     },
     {
@@ -794,7 +801,7 @@
     color: { name: 'Color', layout: 'ws-color', panel: 'project', right: 'controls' },
     effects: { name: 'Effects', layout: 'ws-effects', panel: 'effects', right: 'controls' },
     audio: { name: 'Audio', layout: 'ws-audio', panel: 'project', right: 'controls' },
-    graphics: { name: 'Graphics', available: false },
+    graphics: { name: 'Graphics', layout: '', panel: 'graphics', right: 'controls' },
     captions: { name: 'Captions', available: false },
     libraries: { name: 'Libraries', available: false },
   };

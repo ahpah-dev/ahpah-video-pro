@@ -171,6 +171,41 @@
     return (c.fx || []).some((f) => f.enabled && (POST_EFFECTS[f.type] || f.type === 'lumetri'));
   }
 
+  // Rectangles and ellipses from the Essential Graphics panel. Sizes are percentages of the frame.
+  function roundRectPath(g, x, y, w, h, rad) {
+    const rr = Math.max(0, Math.min(rad, w / 2, h / 2));
+    g.beginPath();
+    g.moveTo(x + rr, y);
+    g.arcTo(x + w, y, x + w, y + h, rr);
+    g.arcTo(x + w, y + h, x, y + h, rr);
+    g.arcTo(x, y + h, x, y, rr);
+    g.arcTo(x, y, x + w, y, rr);
+    g.closePath();
+  }
+
+  function drawShape(target, c, cx, cy, sc, rot, W, H, filter) {
+    const sh = c.shape || AVP.defaultShape();
+    const w = (sh.width / 100) * W * sc;
+    const h = (sh.height / 100) * H * sc;
+    const unit = H / 1080;
+    target.save();
+    target.filter = filter;
+    target.translate(cx, cy);
+    target.rotate(rot);
+    target.fillStyle = sh.fill;
+    target.strokeStyle = sh.stroke;
+    target.lineWidth = sh.strokeWidth * unit * 2;
+    if (sh.type === 'ellipse') {
+      target.beginPath();
+      target.ellipse(0, 0, Math.max(0, w / 2), Math.max(0, h / 2), 0, 0, Math.PI * 2);
+    } else {
+      roundRectPath(target, -w / 2, -h / 2, w, h, sh.radius * unit);
+    }
+    target.fill();
+    if (sh.strokeWidth > 0) target.stroke();
+    target.restore();
+  }
+
   // Paints the clip's own content onto target. Returns false while media is not ready.
   function paintContent(target, c, t, v, getSource, W, H) {
     const px = AVP.propAt(c, 'x', t) / 100;
@@ -187,6 +222,11 @@
       target.filter = filter;
       drawTitle(target, c, t, cx, cy, sc, rot, W, H);
       target.filter = 'none';
+      return true;
+    }
+
+    if (c.kind === 'shape') {
+      drawShape(target, c, cx, cy, sc, rot, W, H, filter);
       return true;
     }
 
@@ -217,14 +257,28 @@
   }
 
   // Lumetri Color: grades the clip's layer on the GPU (no-op when WebGL is unavailable).
-  const LUMETRI_KEYS = ['exposure', 'contrast', 'highlights', 'shadows', 'whites', 'blacks', 'saturation', 'temperature', 'tint', 'vibrance', 'fade'];
+  // Curves and the LUT come from the effect's own data; the sliders are keyframeable.
+  const lutAtlases = new WeakMap();
+  function lutAtlas(lut) {
+    if (!lutAtlases.has(lut)) {
+      const data = Float32Array.from(lut.data);
+      lutAtlases.set(lut, AVP.color.atlasFromLut({ size: lut.size, data }));
+    }
+    return lutAtlases.get(lut);
+  }
+
   function applyLumetri(c, t, W, H) {
     if (!AVP.gpuOk) return;
     (c.fx || []).forEach((fx) => {
       if (fx.type !== 'lumetri' || !fx.enabled) return;
       const p = {};
-      LUMETRI_KEYS.forEach((k) => (p[k] = AVP.fxParamAt(c, fx, k, t)));
-      const graded = AVP.gpu.grade(layer, p);
+      AVP.EFFECTS.lumetri.params.forEach((d) => (p[d.k] = AVP.fxParamAt(c, fx, d.k, t)));
+      const extras = {};
+      if (fx.curves) extras.curve = AVP.color.curveLut(fx.curves);
+      if (fx.lut && fx.lut.data && fx.lut.data.length) {
+        extras.lut = { size: fx.lut.size, atlas: lutAtlas(fx.lut) };
+      }
+      const graded = AVP.gpu.grade(layer, p, extras);
       if (!graded) return;
       lctx.setTransform(1, 0, 0, 1, 0, 0);
       lctx.globalAlpha = 1;

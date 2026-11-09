@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.5.0
+
+### Lumetri Color
+- Colour wheels for shadows, midtones and highlights (drag to tint, double-click to reset).
+- Curves editor: RGB and per-channel curves with draggable points.
+- HSL secondary: a hue range that can be shifted, saturated and lifted.
+- Sharpening.
+- Input LUTs: load Adobe .cube 3D LUTs, with a strength control. LUTs are saved in the project.
+- The shader now runs all grading in one pass, including the new controls.
+
+### Essential Sound
+- Loudness is measured in LUFS (ITU-R BS.1770 K-weighting with gating) and the auto-match target
+  is in LUFS.
+- Noise reduction: a gate that closes between speech, using the clip's measured noise floor.
+- Reverb send to a synthetic room.
+- Ducking: music and sound effects lower while a dialogue clip plays.
+
+### Audio Clip Mixer
+- Pan for each track.
+- Reverb send per track.
+- Automation of volume, pan and send: a stopwatch on each control, and moving a control writes a
+  keyframe at the playhead.
+
+### Graphics
+- Essential Graphics panel: text, rectangle and ellipse graphics, with a browser of presets.
+- Rectangles and ellipses: fill, stroke, size and corner radius. Available from the Graphics menu.
+- The Graphics workspace is now available.
+
 ## 1.4.0
 
 ### Transitions

@@ -252,6 +252,31 @@
       return c.id;
     },
 
+    /* ---------- graphics ---------- */
+
+    // Places a rectangle or ellipse shape on a video track.
+    placeShape(o) {
+      AVP.pushUndo();
+      const dur = o.duration || 5;
+      const start = Math.max(0, AVP.snapFrame(o.start));
+      if (o.mode === 'insert') E.insertGap([o.track], start, dur);
+      else E.clearRange(o.track, start, start + dur);
+      const c = AVP.normalizeClip({
+        kind: 'shape',
+        mediaId: null,
+        track: o.track,
+        start,
+        inPoint: 0,
+        duration: dur,
+        props: AVP.defaultProps(),
+        shape: AVP.defaultShape(o.type),
+      });
+      S.clips.push(c);
+      AVP.select([c.id], false);
+      AVP.refresh();
+      return c.id;
+    },
+
     /* ---------- transitions ---------- */
 
     // Applies a transition to a clip edge. Video transitions also crossfade the partner audio.

@@ -115,7 +115,10 @@
       .then((buf) => ac.decodeAudioData(buf))
       .then((audio) => {
         media.wave = makeWave(audio);
-        media.rmsDb = measureRmsDb(audio);
+        const channels = [];
+        for (let k = 0; k < audio.numberOfChannels; k++) channels.push(audio.getChannelData(k));
+        media.lufs = AVP.loudness.integratedLufs(channels, audio.sampleRate);
+        media.env = AVP.loudness.levelEnvelope(channels, audio.sampleRate);
         setWaveRule(media);
         media.hasAudio = true;
         if (media.durationGuess && audio.duration > 0) {

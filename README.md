@@ -50,9 +50,17 @@ it, sell it or bundle it however you like.
 - **Sequence settings**: frame size (HD, 4K, vertical, square) and frame rate.
 - **Workspaces**: Editing, Assembly, Effects, Color and Audio layouts (the other workspace tabs are placeholders).
 - **Lumetri Color**: exposure, contrast, highlights, shadows, whites, blacks, white balance,
-  saturation, vibrance and faded film, computed on the GPU and keyframeable.
-- **Essential Sound**: audio types, loudness auto-match, low cut, presence and compression.
-- **Audio Clip Mixer**: track faders, mute, solo and meters, with a master meter.
+  three colour wheels (shadows, midtones, highlights), an RGB curves editor with per-channel
+  curves, an HSL secondary, saturation, vibrance, faded film, sharpening and 3D LUTs (.cube).
+  Computed on the GPU; the basic controls are keyframeable.
+- **Essential Sound**: audio types, loudness auto-match to a target in LUFS (ITU-R BS.1770
+  K-weighting with gating), low cut, presence, compression, noise reduction (a gate that closes
+  between speech, using the clip's measured noise floor), reverb, and ducking of music and sound
+  effects under dialogue.
+- **Audio Clip Mixer**: track faders in dB, pan, a reverb send, mute, solo, meters, and
+  automation of volume, pan and send with keyframes. A master meter sits at the timeline's edge.
+- **Graphics (Essential Graphics)**: text titles, rectangles and ellipses with fill, stroke,
+  size and corner radius, and a browser of title and lower-third presets.
 - **Context menus** on every area: clips, tracks, the ruler, markers, the Project panel,
   both monitors and the background.
 - **Projects** (`.ahpvp`): save and reopen timelines. The timeline is also autosaved in the
@@ -111,12 +119,19 @@ This is an early, browser-based editor. Known limits:
 
 - Export runs in real time: a 10-minute sequence takes about 10 minutes. Keep the tab
   visible while it runs.
-- No chroma key, colour wheels, keyframe curves or speed ramps yet.
+- Lumetri uses its own display-space maths. It is close to Lumetri in use, but it is not
+  Adobe's implementation, and it has no Vignette-in-Lumetri or Look presets.
+- Essential Sound loudness is measured per clip with BS.1770 K-weighting. Noise reduction is a
+  gate, not spectral denoising, and the reverb is a synthetic room, not a sampled hall.
+- Ducking follows the timeline, so the music lowers while a dialogue clip plays.
+- Speed ramps and chroma key are not included.
+- A 3D LUT is saved inside the project file, so large LUTs make large project files.
 - Only three video and three audio tracks are created by default (more can be added).
 - The preview is drawn at the chosen resolution; export always uses the chosen export size.
 - Some effects (glow, mosaic, vignette, grain) and CSS-filter effects depend on the browser's
   canvas support. Safari may skip the colour and blur effects.
 - Projects reference media by file name, so keep the originals in place.
+- Some MP4 files have no decodable audio track. Those clips cannot be loudness-matched.
 
 ## Development
 

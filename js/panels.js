@@ -418,12 +418,13 @@
   function setLeftTab(name) {
     S.leftTab = name;
     document.querySelectorAll('[data-ptab]').forEach((b) => b.classList.toggle('active', b.dataset.ptab === name));
-    const panes = { project: '#paneProject', effects: '#paneEffects', markers: '#paneMarkers' };
+    const panes = { project: '#paneProject', effects: '#paneEffects', markers: '#paneMarkers', graphics: '#paneGraphics' };
     Object.keys(panes).forEach((k) => {
       const el = $(panes[k]);
       if (el) el.classList.toggle('hidden', k !== name);
     });
     if (name === 'markers') renderMarkers();
+    if (name === 'graphics') renderGraphics();
   }
 
   const RIGHT_PANES = { controls: '#fxBody', lumetri: '#lumetriBody', sound: '#soundBody', mixer: '#mixerBody', metadata: '#infoBody' };
@@ -546,7 +547,11 @@
   const LUMETRI_GROUPS = [
     { title: 'Basic Correction', keys: ['exposure', 'contrast', 'highlights', 'shadows', 'whites', 'blacks'] },
     { title: 'White Balance', keys: ['temperature', 'tint'] },
-    { title: 'Creative', keys: ['vibrance', 'saturation', 'fade'] },
+    { slot: 'lumWheels' },
+    { slot: 'lumCurves' },
+    { title: 'Creative', keys: ['vibrance', 'saturation', 'fade', 'sharpen'] },
+    { title: 'HSL Secondary', keys: ['hslHue', 'hslRange', 'hslSoft', 'hslShift', 'hslSat', 'hslLum'], hsl: true },
+    { title: 'Input LUT', keys: ['lutAmount'], slotInside: 'lumLut' },
   ];
 
   function renderLumetri() {
@@ -573,7 +578,15 @@
       '<div class="fx-card-head"><label class="df-check"><input type="checkbox" id="lumOn"' + (fx.enabled ? ' checked' : '') + '> Enabled</label>' +
       '<span><button class="btn tiny" id="lumReset">Reset</button> <button class="btn tiny" id="lumRemove">Remove</button></span></div>';
     LUMETRI_GROUPS.forEach((g) => {
+      if (g.slot) {
+        html += '<div id="' + g.slot + '"></div>';
+        return;
+      }
       html += '<div class="fx-group"><div class="fx-title">' + g.title + '</div>';
+      if (g.slotInside) html += '<div id="' + g.slotInside + '"></div>';
+      if (g.hsl) {
+        html += '<label class="df-check"><input type="checkbox" id="lumHsl"' + (fx.params.hslOn ? ' checked' : '') + '> HSL secondary on</label>';
+      }
       html += g.keys
         .map((k) => {
           const d = AVP.effectParamDef('lumetri', k);
@@ -585,6 +598,15 @@
     html += '<div class="fx-note">Shadows, highlights, whites and blacks move tones in their own range. Use the stopwatch on any control to keyframe it.</div>';
     body.innerHTML = html;
     bindParams(body, c);
+    const hslBox = $('#lumHsl');
+    if (hslBox) {
+      hslBox.addEventListener('change', (e) => {
+        AVP.pushUndo();
+        fx.params.hslOn = e.target.checked ? 1 : 0;
+        AVP.refresh();
+      });
+    }
+    if (AVP.lumetriUI) AVP.lumetriUI.mount(c.id, fx.id);
     $('#lumOn').addEventListener('change', (e) => {
       AVP.pushUndo();
       fx.enabled = e.target.checked;
@@ -614,6 +636,14 @@
     AVP.monitor.sync();
   }
 
+  function soundSlider(id, label, key, min, max, step, unit, value) {
+    return (
+      '<div class="fx-row"><span class="fx-label">' + label + '</span>' +
+      '<input type="range" id="' + id + '" data-skey="' + key + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + value + '">' +
+      '<output>' + value + unit + '</output><span></span><span></span></div>'
+    );
+  }
+
   function renderSound() {
     const body = $('#soundBody');
     if (!body) return;
@@ -627,7 +657,8 @@
     const options = Object.keys(AVP.SOUND_PRESETS)
       .map((k) => '<option value="' + k + '"' + (k === snd.type ? ' selected' : '') + '>' + AVP.SOUND_PRESETS[k].label + '</option>')
       .join('');
-    const level = m && m.rmsDb != null ? m.rmsDb.toFixed(1) + ' dB RMS' : 'not measured';
+    const measured = m && m.lufs != null ? m.lufs.toFixed(1) + ' LUFS' : m && m.env ? 'silent' : 'not measured';
+    const noise = m && m.env ? m.env.floor.toFixed(0) + ' dB' : 'not measured';
     body.innerHTML =
       '<div class="fx-head"><div class="fx-name">Essential Sound</div><div class="fx-sub">' + AVP.esc(m ? m.name : 'Audio') + ' · ' + c.track + '</div></div>' +
       '<div class="fx-group"><div class="fx-title">Audio Type</div>' +
@@ -636,12 +667,20 @@
       '<label class="df-check"><input type="checkbox" id="snOn"' + (snd.enabled ? ' checked' : '') + '> Essential Sound enabled</label></div>' +
       '<div class="fx-group"><div class="fx-title">Loudness</div>' +
       '<label class="df-check"><input type="checkbox" id="snAuto"' + (snd.autoMatch ? ' checked' : '') + '> Auto-match loudness to target</label>' +
-      '<div class="fx-row"><span class="fx-label">Target</span><input type="range" id="snTarget" min="-40" max="0" step="1" value="' + snd.target + '"><output>' + snd.target + ' dB</output><span></span><span></span></div>' +
-      '<div class="fx-kv"><span>Measured level</span><b>' + level + '</b></div></div>' +
+      soundSlider('snTarget', 'Target', 'target', -40, 0, 1, ' LUFS', snd.target) +
+      '<div class="fx-kv"><span>Integrated loudness</span><b>' + measured + '</b></div></div>' +
       '<div class="fx-group"><div class="fx-title">Clean Up</div>' +
-      '<div class="fx-row"><span class="fx-label">Low cut</span><input type="range" id="snLow" min="20" max="300" step="5" value="' + snd.lowCut + '"><output>' + snd.lowCut + ' Hz</output><span></span><span></span></div>' +
-      '<div class="fx-row"><span class="fx-label">Presence</span><input type="range" id="snPres" min="-6" max="8" step="0.5" value="' + snd.presence + '"><output>' + snd.presence + ' dB</output><span></span><span></span></div>' +
-      '<label class="df-check"><input type="checkbox" id="snComp"' + (snd.compress ? ' checked' : '') + '> Compression (levels dialogue)</label></div>';
+      soundSlider('snLow', 'Low cut', 'lowCut', 20, 300, 5, ' Hz', snd.lowCut) +
+      soundSlider('snPres', 'Presence', 'presence', -6, 8, 0.5, ' dB', snd.presence) +
+      '<label class="df-check"><input type="checkbox" id="snComp"' + (snd.compress ? ' checked' : '') + '> Compression (levels dialogue)</label>' +
+      soundSlider('snNoise', 'Reduce noise', 'noiseReduce', 0, 100, 1, '%', snd.noiseReduce) +
+      '<div class="fx-kv"><span>Noise floor</span><b>' + noise + '</b></div></div>' +
+      '<div class="fx-group"><div class="fx-title">Space</div>' +
+      soundSlider('snReverb', 'Reverb', 'reverb', 0, 100, 1, '%', snd.reverb) +
+      (snd.type !== 'dialogue'
+        ? soundSlider('snDuck', 'Duck under dialogue', 'duck', 0, 24, 1, ' dB', snd.duck)
+        : '<div class="fx-note">Dialogue is the voice the other clips duck under, so it is never ducked itself.</div>') +
+      '</div>';
 
     const id = c.id;
     $('#snType').addEventListener('change', (e) => {
@@ -664,30 +703,64 @@
       setSoundField(id, { compress: e.target.checked });
       AVP.refresh();
     });
-    const slider = (sel, key, unit) => {
-      const el = $(sel);
+    body.querySelectorAll('input[data-skey]').forEach((el) => {
+      const key = el.dataset.skey;
       el.addEventListener('pointerdown', () => AVP.pushUndo());
       el.addEventListener('input', () => {
         setSoundField(id, { [key]: +el.value });
-        el.parentElement.querySelector('output').textContent = el.value + unit;
+        el.parentElement.querySelector('output').textContent = el.value + (el.parentElement.querySelector('output').textContent.match(/[^\d.\-]+$/) || [''])[0];
       });
-    };
-    slider('#snTarget', 'target', ' dB');
-    slider('#snLow', 'lowCut', ' Hz');
-    slider('#snPres', 'presence', ' dB');
+    });
   }
 
   /* ---------- Audio Clip Mixer ---------- */
 
+  // Mixer values can be automated: a stopwatch turns keyframes on for a control. While keyframed,
+  // moving the control writes a keyframe at the playhead, as clip keyframes do.
+  function trackKeyed(id, key) {
+    const tr = S.tracks[id];
+    return !!(tr.keys && tr.keys[key] && tr.keys[key].length);
+  }
+
+  function toggleTrackKeys(id, key) {
+    const tr = S.tracks[id];
+    AVP.pushUndo();
+    if (trackKeyed(id, key)) {
+      delete tr.keys[key];
+    } else {
+      tr.keys = tr.keys || {};
+      tr.keys[key] = [{ t: S.playhead, v: AVP.monitor.trackParam(id, key, S.playhead) }];
+    }
+    AVP.refresh();
+  }
+
+  // Writes a mixer value: a keyframe at the playhead when automated, otherwise the setting itself.
+  function writeTrackValue(id, key, v) {
+    const tr = S.tracks[id];
+    if (trackKeyed(id, key)) {
+      AVP.setKey(tr.keys[key], S.playhead, v);
+    } else {
+      tr[key] = v;
+    }
+  }
+
   function mixerStrip(id) {
     const tr = S.tracks[id];
-    const db = tr.volume || 0;
+    const db = AVP.monitor.trackParam(id, 'volume', S.playhead);
+    const pan = AVP.monitor.trackParam(id, 'pan', S.playhead);
+    const send = AVP.monitor.trackParam(id, 'send', S.playhead);
+    const watch = (key) => '<button class="kf-watch' + (trackKeyed(id, key) ? ' on' : '') + '" data-tkf="' + id + '|' + key + '" title="Automate ' + key + '"></button>';
     return (
       '<div class="mix-strip">' +
       '<div class="mix-name' + (tr.solo ? ' soloing' : '') + '">' + id + '</div>' +
       '<div class="mix-meter"><canvas data-mixmeter="' + id + '"></canvas></div>' +
+      '<div class="mix-auto">' + watch('volume') + '</div>' +
       '<input type="range" class="mix-fader" data-fader="' + id + '" min="-60" max="12" step="0.5" value="' + db + '" title="Track volume">' +
       '<div class="mix-db" data-dbfor="' + id + '">' + db.toFixed(1) + ' dB</div>' +
+      '<div class="mix-knob"><span>Pan</span>' + watch('pan') +
+      '<input type="range" data-pan="' + id + '" min="-100" max="100" step="1" value="' + pan + '" title="Pan"><output>' + Math.round(pan) + '</output></div>' +
+      '<div class="mix-knob"><span>Send</span>' + watch('send') +
+      '<input type="range" data-send="' + id + '" min="0" max="100" step="1" value="' + send + '" title="Reverb send"><output>' + Math.round(send) + '</output></div>' +
       '<div class="mix-btns"><button class="tl-toggle mute' + (tr.muted ? ' on' : '') + '" data-mmute="' + id + '" title="Mute">M</button>' +
       '<button class="tl-toggle solo' + (tr.solo ? ' on' : '') + '" data-msolo="' + id + '" title="Solo">S</button></div>' +
       '</div>'
@@ -704,15 +777,35 @@
       '<div class="mix-strip master"><div class="mix-name">Master</div>' +
       '<div class="mix-meter"><canvas data-mixmeter="master"></canvas></div>' +
       '<div class="mix-db">0.0 dB</div></div></div>' +
-      '<div class="fx-note">Track faders set each track level. M mutes a track and S solos it; while any track is soloed, the others are silent.</div>';
+      '<div class="fx-note">Faders set each track level, pan places it left or right, and send feeds the room reverb. The stopwatch above a control automates it: moving the control then writes a keyframe at the playhead. M mutes and S solos a track.</div>';
 
+    body.querySelectorAll('[data-tkf]').forEach((b) => {
+      const [id, key] = b.dataset.tkf.split('|');
+      b.addEventListener('click', () => toggleTrackKeys(id, key));
+    });
     body.querySelectorAll('.mix-fader').forEach((inp) => {
       const id = inp.dataset.fader;
       inp.addEventListener('pointerdown', () => AVP.pushUndo());
       inp.addEventListener('input', () => {
-        S.tracks[id].volume = +inp.value;
+        writeTrackValue(id, 'volume', +inp.value);
         const label = body.querySelector('[data-dbfor="' + id + '"]');
         if (label) label.textContent = (+inp.value).toFixed(1) + ' dB';
+      });
+    });
+    body.querySelectorAll('[data-pan]').forEach((inp) => {
+      const id = inp.dataset.pan;
+      inp.addEventListener('pointerdown', () => AVP.pushUndo());
+      inp.addEventListener('input', () => {
+        writeTrackValue(id, 'pan', +inp.value);
+        inp.parentElement.querySelector('output').textContent = Math.round(+inp.value);
+      });
+    });
+    body.querySelectorAll('[data-send]').forEach((inp) => {
+      const id = inp.dataset.send;
+      inp.addEventListener('pointerdown', () => AVP.pushUndo());
+      inp.addEventListener('input', () => {
+        writeTrackValue(id, 'send', +inp.value);
+        inp.parentElement.querySelector('output').textContent = Math.round(+inp.value);
       });
     });
     body.querySelectorAll('[data-mmute]').forEach((b) =>
@@ -733,9 +826,87 @@
     );
   }
 
+  /* ---------- Graphics (Essential Graphics) ---------- */
+
+  function renderGraphics() {
+    const body = $('#graphicsBody');
+    if (!body) return;
+    const c = AVP.selectedClips()[0];
+    const isShape = c && c.kind === 'shape';
+    const isTitle = c && c.kind === 'title';
+    const presets = AVP.TITLE_PRESETS.map(
+      (p, i) => '<div class="lib-item" data-preset="' + i + '">' + AVP.esc(p.name) + '</div>'
+    ).join('');
+    let selected = '<div class="hint">Select a title or shape on the timeline to edit it here.</div>';
+    if (isShape) {
+      const sh = c.shape;
+      selected =
+        '<div class="fx-group"><div class="fx-title">' + (sh.type === 'ellipse' ? 'Ellipse' : 'Rectangle') + '</div>' +
+        '<div class="fx-kv"><span>Fill</span><input type="color" data-gshape="fill" value="' + sh.fill + '"></div>' +
+        '<div class="fx-kv"><span>Stroke</span><input type="color" data-gshape="stroke" value="' + sh.stroke + '"></div>' +
+        soundSlider('gStroke', 'Stroke width', 'strokeWidth', 0, 40, 1, ' px', sh.strokeWidth).replace('data-skey="strokeWidth"', 'data-gshape="strokeWidth"') +
+        soundSlider('gW', 'Width', 'width', 1, 100, 1, '%', sh.width).replace('data-skey="width"', 'data-gshape="width"') +
+        soundSlider('gH', 'Height', 'height', 1, 100, 1, '%', sh.height).replace('data-skey="height"', 'data-gshape="height"') +
+        (sh.type === 'rect' ? soundSlider('gR', 'Corner radius', 'radius', 0, 200, 1, ' px', sh.radius).replace('data-skey="radius"', 'data-gshape="radius"') : '') +
+        '</div>';
+    } else if (isTitle) {
+      selected =
+        '<div class="fx-group"><div class="fx-title">Title text</div>' +
+        '<textarea class="wide" rows="3" id="gText">' + AVP.esc(c.text.text) + '</textarea>' +
+        '<div class="fx-note">Font, size, colour, outline, shadow and background are in Effect Controls.</div></div>';
+    }
+    body.innerHTML =
+      '<div class="fx-group"><div class="fx-title">New graphic</div>' +
+      '<div class="graphic-buttons">' +
+      '<button class="btn" id="gNewText">Text</button>' +
+      '<button class="btn" id="gNewRect">Rectangle</button>' +
+      '<button class="btn" id="gNewEllipse">Ellipse</button></div>' +
+      '<div class="fx-note">Adds the graphic at the playhead on the target video track.</div></div>' +
+      '<div class="fx-group"><div class="fx-title">Browse titles and lower thirds</div>' +
+      '<div class="lib-list">' + presets + '</div>' +
+      '<div class="fx-note">Double-click a preset to add it at the playhead.</div></div>' +
+      '<div class="fx-group"><div class="fx-title">Selected graphic</div></div>' +
+      selected;
+
+    $('#gNewText').addEventListener('click', () => AVP.edit.placeTitle({ track: S.target.video, start: S.playhead, preset: 0, mode: 'overwrite' }));
+    $('#gNewRect').addEventListener('click', () => AVP.edit.placeShape({ track: S.target.video, start: S.playhead, type: 'rect', mode: 'overwrite' }));
+    $('#gNewEllipse').addEventListener('click', () => AVP.edit.placeShape({ track: S.target.video, start: S.playhead, type: 'ellipse', mode: 'overwrite' }));
+    body.querySelectorAll('[data-preset]').forEach((el) =>
+      el.addEventListener('dblclick', () => AVP.edit.placeTitle({ track: S.target.video, start: S.playhead, preset: +el.dataset.preset, mode: 'overwrite' }))
+    );
+    if (isShape) {
+      const id = c.id;
+      body.querySelectorAll('[data-gshape]').forEach((el) => {
+        const key = el.dataset.gshape;
+        el.addEventListener('pointerdown', () => AVP.pushUndo());
+        el.addEventListener('input', () => {
+          const cur = AVP.findClip(id);
+          if (!cur) return;
+          cur.shape[key] = el.type === 'color' ? el.value : +el.value;
+          if (el.type !== 'color') el.parentElement.querySelector('output').textContent = el.value + (el.parentElement.querySelector('output').textContent.match(/[^\d.\-]+$/) || [''])[0];
+          AVP.monitor.draw();
+        });
+      });
+    }
+    if (isTitle) {
+      const id = c.id;
+      const text = $('#gText');
+      text.addEventListener('pointerdown', () => AVP.pushUndo());
+      text.addEventListener('input', () => {
+        const cur = AVP.findClip(id);
+        if (cur) {
+          cur.text.text = text.value;
+          AVP.timeline.render();
+          AVP.monitor.draw();
+        }
+      });
+    }
+  }
+
   // Refreshes the side lists that depend on the project (markers, metadata).
   function renderSide() {
     if (S.leftTab === 'markers') renderMarkers();
+    if (S.leftTab === 'graphics') renderGraphics();
     if (S.rightTab === 'metadata') renderInfo();
     if (S.rightTab === 'lumetri') renderLumetri();
     if (S.rightTab === 'sound') renderSound();
@@ -760,6 +931,7 @@
     renderSide,
     renderLibrary,
     renderMarkers,
+    renderGraphics,
     renderInfo,
     renderLumetri,
     renderSound,
