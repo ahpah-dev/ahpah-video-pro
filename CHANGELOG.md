@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.22.1
+
+### Export: lag spikes fixed
+- The frame-by-frame MP4 export seeked each video to exactly `frame / fps`. The stored timestamps are
+  rounded, so that seek often landed on the frame before: about one frame in three was a repeat of the
+  last one and the next was skipped, which showed as lag spikes in the exported video. Seeks are now
+  nudged 3 ms past the frame's time, so the right frame is always picked.
+- Checked on a real 1080p 30 fps clip, 8 seconds exported: repeated frames went from 79 of 241 to 0.
+- The MP4 option no longer depends on the browser's MediaRecorder supporting MP4. It only needs
+  WebCodecs, so browsers that used to get the real-time WebM export (the one that stutters) now get the
+  smooth frame-by-frame MP4 too.
+
 ## 1.22.0
 
 ### MP4 export, frame by frame

@@ -743,9 +743,6 @@
     if (S.exporting) return;
     const end = AVP.seqEnd();
     if (end <= 0) return AVP.toast('Nothing to export. Add clips to the timeline first.', 'warn');
-    if (typeof MediaRecorder === 'undefined' || !canvas.captureStream) {
-      return AVP.toast('This browser cannot record video. Try Chrome, Edge or Firefox.', 'error');
-    }
     opts = Object.assign({ format: 'webm', width: S.seqWidth, height: S.seqHeight, bitrate: 8, range: 'sequence' }, opts || {});
     if (opts.format === 'mp4' && AVP.offlineExport && AVP.offlineExport.supported()) {
       let s0 = 0;
@@ -756,6 +753,9 @@
         if (s1 - s0 < 0.1) return AVP.toast('The work area is empty', 'warn');
       }
       return AVP.offlineExport.run({ start: s0, stop: s1, width: opts.width, height: opts.height, bitrate: opts.bitrate, fps: S.fps });
+    }
+    if (typeof MediaRecorder === 'undefined' || !canvas.captureStream) {
+      return AVP.toast('This browser cannot record video. Try Chrome, Edge or Firefox.', 'error');
     }
     const mime = pickMime(opts.format);
     if (!mime) return AVP.toast('This browser cannot record ' + opts.format.toUpperCase() + '. Choose WebM.', 'error');

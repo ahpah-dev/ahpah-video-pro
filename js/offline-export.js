@@ -20,6 +20,11 @@
   // Each chunk of sound is rendered this much earlier, and the lead-in is dropped. The filters need that time to
   // settle; without it every chunk starts with a dip in level at its join.
   const LEAD_IN = 0.5;
+  // Seek targets are nudged this far past the frame's timestamp. Seeking to exactly k/fps often lands on the
+  // frame before (the stored timestamps are rounded), so one frame in three came out as a repeat of the last
+  // and the next one was skipped: a visible judder. A few milliseconds is well under one source frame (even at
+  // 120 fps), so it always picks the frame that is meant.
+  const SEEK_BIAS = 0.003;
 
   let job = null; // the export in progress, or null
 
@@ -101,8 +106,8 @@
       if (!m || m.type !== 'video' || AVP.trackKind(c.track) !== 'video') continue;
       const n = AVP.monitor.getSource(c);
       if (!n || !n.el) continue;
-      const target = Math.max(0, c.inPoint + (t - c.start) * (c.speed || 1));
-      waits.push(seekTo(n.el, target));
+      const target = Math.max(0, c.inPoint + (t - c.start) * (c.speed || 1)) + SEEK_BIAS;
+      waits.push(seekTo(n.el, Math.min(target, (n.el.duration || Infinity) - 0.0005)));
     }
     await Promise.all(waits);
     S.playhead = t;

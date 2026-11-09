@@ -151,7 +151,8 @@
   }
 
   function exportDialog() {
-    const mp4 = typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('video/mp4');
+    // MP4 is drawn frame by frame with WebCodecs; it does not need MediaRecorder to support MP4.
+    const mp4 = !!(AVP.offlineExport && AVP.offlineExport.supported());
     const hasWork = S.workIn != null || S.workOut != null;
     AVP.dialog.form({
       title: 'Export video',
