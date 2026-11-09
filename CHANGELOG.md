@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.6.0
+
+### Design
+- New design layer (css/theme.css) over the editor styles, with a stronger visual system.
+- Sliders: a recessed groove with a bright fill up to a glossy thumb, a halo on hover and a press
+  state. The fill follows the value through js/ui.js.
+- Checkboxes, selects with a custom arrow, and search fields with a magnifier.
+- Buttons with a lit top edge, pressed and active states, and a glowing play button.
+- LCD-style timecode, recessed meters, mixer strips with vertical faders, and framed monitors.
+- Clips with a lit top edge and a glow when selected; tabs, menus, dialogs and toasts restyled.
+
 ## 1.5.0
 
 ### Lumetri Color

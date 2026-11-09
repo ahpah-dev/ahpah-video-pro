@@ -61,6 +61,7 @@ it, sell it or bundle it however you like.
   automation of volume, pan and send with keyframes. A master meter sits at the timeline's edge.
 - **Graphics (Essential Graphics)**: text titles, rectangles and ellipses with fill, stroke,
   size and corner radius, and a browser of title and lower-third presets.
+- **Design**: a refined dark theme with custom sliders, checkboxes, selects and buttons, LCD-style timecode, and vertical mixer faders.
 - **Context menus** on every area: clips, tracks, the ruler, markers, the Project panel,
   both monitors and the background.
 - **Projects** (`.ahpvp`): save and reopen timelines. The timeline is also autosaved in the
