@@ -223,6 +223,227 @@
     });
   }
 
+  /* ---------- Time Remapping: the speed ramp graph ---------- */
+
+  function rampSection(c) {
+    return (
+      `<div class="fx-group">${sectionHead('Time Remapping (speed ramp)')}` +
+      `<select id="rampPreset" class="wide"><option value="">Choose a speed ramp…</option>` +
+      AVP.SPEED_RAMPS.map((r, i) => `<option value="${i}">${esc(r.name)}</option>`).join('') +
+      `</select>` +
+      `<canvas id="rampCanvas" class="ramp-canvas" height="132"></canvas>` +
+      `<div class="fx-note" id="rampInfo"></div>` +
+      `<div class="ramp-btns"><button class="btn tiny" id="rampReset">Remove ramp</button></div>` +
+      `<div class="fx-note">Click the graph to add a speed point, drag a point to change its time and speed, double-click a point to remove it. Picture and sound ramp together.</div>` +
+      `</div>`
+    );
+  }
+
+  const RAMP_TOP = 8;
+  const RAMP_PAD_L = 34;
+  const RAMP_LOG = Math.log(AVP.RAMP_MAX / AVP.RAMP_MIN);
+
+  function rampBind(c) {
+    const cv = $('#rampCanvas');
+    if (!cv) return;
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = Math.max(120, cv.clientWidth || 280);
+    const cssH = 132;
+    cv.width = Math.round(cssW * dpr);
+    cv.height = Math.round(cssH * dpr);
+    cv.style.height = cssH + 'px';
+    const g = cv.getContext('2d');
+    const plot = { x: RAMP_PAD_L, y: RAMP_TOP, w: cssW - RAMP_PAD_L - 8, h: cssH - RAMP_TOP - 16 };
+    const toX = (t) => plot.x + (t / Math.max(c.duration, 1e-6)) * plot.w;
+    const toY = (v) => plot.y + plot.h * (1 - Math.log(AVP.clamp(v, AVP.RAMP_MIN, AVP.RAMP_MAX) / AVP.RAMP_MIN) / RAMP_LOG);
+    const toT = (x) => AVP.clamp(((x - plot.x) / plot.w) * c.duration, 0, c.duration);
+    const toV = (y) => Math.round(AVP.clamp(AVP.RAMP_MIN * Math.exp((1 - (y - plot.y) / plot.h) * RAMP_LOG), AVP.RAMP_MIN, AVP.RAMP_MAX));
+    let drag = -1;
+    let undone = false;
+
+    const info = () => {
+      const el = $('#rampInfo');
+      if (!el) return;
+      const local = AVP.clamp(S.playhead - c.start, 0, c.duration);
+      el.textContent = AVP.hasRamp(c)
+        ? `At the playhead: ${Math.round((AVP.speedAt(c, local) * 100))}%.  Uses ${AVP.srcOffset(c, c.duration).toFixed(2)} s of the file in ${c.duration.toFixed(2)} s.`
+        : 'No speed ramp. The clip plays at its constant speed.';
+    };
+
+    const draw = () => {
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, cssW, cssH);
+      g.fillStyle = '#181818';
+      g.fillRect(plot.x, plot.y, plot.w, plot.h);
+      g.font = '9.5px "Segoe UI", sans-serif';
+      g.textBaseline = 'middle';
+      [12.5, 25, 50, 100, 200, 400, 800].forEach((v) => {
+        const y = Math.round(toY(v)) + 0.5;
+        g.strokeStyle = v === 100 ? '#4a4a4a' : '#2b2b2b';
+        g.beginPath();
+        g.moveTo(plot.x, y);
+        g.lineTo(plot.x + plot.w, y);
+        g.stroke();
+        g.fillStyle = '#8a8a8a';
+        g.textAlign = 'right';
+        g.fillText(v + '%', plot.x - 4, y);
+      });
+      const keys = AVP.hasRamp(c) ? c.keys.speed : [{ t: 0, v: 100 }, { t: c.duration, v: 100 }];
+      const pts = keys.map((k) => [toX(k.t), toY(k.v)]);
+      // The curve, held flat before the first point and after the last.
+      g.beginPath();
+      g.moveTo(plot.x, pts[0][1]);
+      pts.forEach((p) => g.lineTo(p[0], p[1]));
+      g.lineTo(plot.x + plot.w, pts[pts.length - 1][1]);
+      g.lineTo(plot.x + plot.w, plot.y + plot.h);
+      g.lineTo(plot.x, plot.y + plot.h);
+      g.closePath();
+      g.fillStyle = 'rgba(45, 140, 235, 0.18)';
+      g.fill();
+      g.beginPath();
+      g.moveTo(plot.x, pts[0][1]);
+      pts.forEach((p) => g.lineTo(p[0], p[1]));
+      g.lineTo(plot.x + plot.w, pts[pts.length - 1][1]);
+      g.strokeStyle = '#4aa0f5';
+      g.lineWidth = 1.5;
+      g.stroke();
+      g.lineWidth = 1;
+      // Playhead.
+      if (S.playhead >= c.start && S.playhead <= c.start + c.duration) {
+        const x = Math.round(toX(S.playhead - c.start)) + 0.5;
+        g.strokeStyle = '#ffffff55';
+        g.beginPath();
+        g.moveTo(x, plot.y);
+        g.lineTo(x, plot.y + plot.h);
+        g.stroke();
+      }
+      if (AVP.hasRamp(c)) {
+        pts.forEach((p, i) => {
+          g.beginPath();
+          g.arc(p[0], p[1], i === drag ? 5 : 4, 0, Math.PI * 2);
+          g.fillStyle = i === drag ? '#ffffff' : '#2d8ceb';
+          g.fill();
+          g.strokeStyle = '#0d0d0d';
+          g.stroke();
+        });
+      }
+      g.fillStyle = '#8a8a8a';
+      g.textAlign = 'left';
+      g.fillText('0 s', plot.x, cssH - 6);
+      g.textAlign = 'right';
+      g.fillText(c.duration.toFixed(1) + ' s', plot.x + plot.w, cssH - 6);
+      info();
+    };
+
+    // Moves the new ramp to the clips linked to this one, and fits every clip to its media.
+    const commit = () => {
+      const partners = AVP.partners(c).filter((p) => p.kind === 'media');
+      partners.forEach((p) => {
+        p.keys.speed = c.keys.speed.map((k) => ({ t: Math.min(k.t, p.duration), v: k.v }));
+      });
+      [c].concat(partners).forEach((x) => AVP.edit.fitToSource(x));
+      AVP.refresh();
+    };
+
+    const pos = (e) => {
+      const r = cv.getBoundingClientRect();
+      return [e.clientX - r.left, e.clientY - r.top];
+    };
+    const pick = (x, y) => {
+      if (!AVP.hasRamp(c)) return -1;
+      let best = -1;
+      let bd = 11;
+      c.keys.speed.forEach((k, i) => {
+        const d = Math.hypot(toX(k.t) - x, toY(k.v) - y);
+        if (d < bd) {
+          bd = d;
+          best = i;
+        }
+      });
+      return best;
+    };
+
+    cv.addEventListener('pointerdown', (e) => {
+      const [x, y] = pos(e);
+      if (x < plot.x - 2 || x > plot.x + plot.w + 2 || y < plot.y - 4 || y > plot.y + plot.h + 4) return;
+      e.preventDefault();
+      let i = pick(x, y);
+      if (i < 0) {
+        // A new point. The first one turns the constant speed into a ramp with a flat start and end.
+        AVP.pushUndo();
+        undone = true;
+        if (!AVP.hasRamp(c)) c.keys.speed = [{ t: 0, v: 100 }, { t: c.duration, v: 100 }];
+        const t = toT(x);
+        if (t < 0.02 || t > c.duration - 0.02) {
+          i = t < c.duration / 2 ? 0 : c.keys.speed.length - 1; // at an end: move that end point instead
+        } else {
+          c.keys.speed.push({ t, v: AVP.evalKeys(c.keys.speed, t, 100) });
+          c.keys.speed.sort((a, b) => a.t - b.t);
+          i = c.keys.speed.findIndex((k) => k.t === t);
+        }
+      }
+      drag = i;
+      cv.setPointerCapture(e.pointerId);
+      draw();
+    });
+    cv.addEventListener('pointermove', (e) => {
+      if (drag < 0) return;
+      const [x, y] = pos(e);
+      if (!undone) {
+        AVP.pushUndo();
+        undone = true;
+      }
+      const list = c.keys.speed;
+      const k = list[drag];
+      k.v = toV(y);
+      if (drag > 0 && drag < list.length - 1) {
+        k.t = AVP.clamp(toT(x), list[drag - 1].t + 0.02, list[drag + 1].t - 0.02);
+      }
+      draw();
+    });
+    const end = (e) => {
+      if (drag < 0) return;
+      drag = -1;
+      try {
+        cv.releasePointerCapture(e.pointerId);
+      } catch (err) {
+        /* not captured */
+      }
+      commit();
+    };
+    cv.addEventListener('pointerup', end);
+    cv.addEventListener('pointercancel', end);
+    cv.addEventListener('dblclick', (e) => {
+      const [x, y] = pos(e);
+      const i = pick(x, y);
+      if (i < 0) return;
+      AVP.pushUndo();
+      c.keys.speed.splice(i, 1);
+      if (c.keys.speed.length < 2) {
+        AVP.partners(c).forEach((p) => delete p.keys.speed);
+        delete c.keys.speed;
+      }
+      commit();
+    });
+
+    const preset = $('#rampPreset');
+    if (preset) {
+      preset.addEventListener('change', () => {
+        if (preset.value === '') return;
+        const r = AVP.SPEED_RAMPS[+preset.value];
+        AVP.edit.setSpeedRamp([c.id], r.make, r.name);
+      });
+    }
+    const reset = $('#rampReset');
+    if (reset) {
+      reset.addEventListener('click', () => {
+        if (!AVP.hasRamp(c)) return AVP.toast('This clip has no speed ramp');
+        AVP.edit.setSpeedRamp([c.id], null);
+      });
+    }
+    draw();
+  }
+
   /* ---------- Effect Controls ---------- */
 
   function sectionHead(title) {
@@ -283,6 +504,8 @@
 
     if (isTitle) html += textSection(c);
 
+    if (c.kind === 'media' && m && m.type !== 'image') html += rampSection(c);
+
     html += `<div class="fx-group">${sectionHead('Effects')}`;
     if (!c.fx.length) html += '<div class="fx-note">No effects. Add one below or drag one from the Effects tab.</div>';
     c.fx.forEach((fx) => {
@@ -321,6 +544,7 @@
     if (T.font && fonts.indexOf(T.font) < 0) fonts.unshift(T.font);
     const fontOpts = fonts.map((f) => `<option${f === T.font ? ' selected' : ''}>${esc(f)}</option>`).join('');
     const animOpts = AVP.TEXT_ANIMATIONS.map((a) => `<option value="${a.v}"${a.v === (T.anim || 'none') ? ' selected' : ''}>${esc(a.label)}</option>`).join('');
+    const outOpts = AVP.TEXT_OUT_ANIMATIONS.map((a) => `<option value="${a.v}"${a.v === (T.animOut || 'none') ? ' selected' : ''}>${esc(a.label)}</option>`).join('');
     const alignOpts = ['left', 'center', 'right'].map((a) => `<option${a === T.align ? ' selected' : ''}>${a}</option>`).join('');
     return (
       `<div class="fx-group">${sectionHead('Text')}` +
@@ -345,6 +569,8 @@
       `<div class="fx-kv"><span>Length (s)</span><input type="number" data-text="animDur" value="${T.animDur}" min="0.05" max="10" step="0.05"></div>` +
       `<div class="fx-kv"><span>Delay (s)</span><input type="number" data-text="animDelay" value="${T.animDelay}" min="0" max="30" step="0.1"></div>` +
       `<div class="fx-kv"><span>Per letter (s)</span><input type="number" data-text="animStagger" value="${T.animStagger}" min="0" max="2" step="0.01"></div>` +
+      `<div class="fx-kv"><span>Exit effect</span><select data-text="animOut">${outOpts}</select></div>` +
+      `<div class="fx-kv"><span>Exit length (s)</span><input type="number" data-text="animOutDur" value="${T.animOutDur}" min="0.05" max="10" step="0.05"></div>` +
       `<div class="fx-kv"><span></span><button class="btn small" data-anim-preview title="Play the clip from its start to see the animation">Preview animation</button></div>` +
       `</div>`
     );
@@ -460,6 +686,8 @@
         AVP.refresh();
       })
     );
+
+    rampBind(c);
 
     // Speed.
     const speed = $('#fxSpeed');

@@ -28,12 +28,11 @@
 
   // Cuts clip c at absolute time t and returns the new right-hand piece.
   function cutPiece(c, t) {
-    const sp = c.speed || 1;
     const off = t - c.start;
     const right = AVP.cloneClip(c, {
       id: AVP.uid(),
       start: t,
-      inPoint: c.inPoint + off * sp,
+      inPoint: c.inPoint + AVP.srcOffset(c, off), // follows a speed ramp as well as a constant speed
       duration: c.start + c.duration - t,
       keys: AVP.rangeKeys(c.keys, off, c.duration),
       transIn: null,
@@ -50,7 +49,7 @@
   function trimHead(g, b) {
     const cut = b - g.start;
     const end = g.start + g.duration;
-    g.inPoint += cut * (g.speed || 1);
+    g.inPoint += AVP.srcOffset(g, cut);
     g.keys = AVP.shiftKeys(g.keys, cut);
     g.start = b;
     g.duration = end - b;
@@ -59,10 +58,9 @@
 
   // Applies a drag trim to clip c from its original state o (d = seconds moved).
   AVP.trimApply = function (c, o, mode, d) {
-    const sp = o.speed || 1;
     if (mode === 'trim-in') {
       c.start = o.start + d;
-      c.inPoint = o.inPoint + d * sp;
+      c.inPoint = o.inPoint + AVP.srcOffset(o, d);
       c.duration = o.duration - d;
       c.keys = AVP.shiftKeys(o.keys, d);
     } else {
@@ -331,6 +329,57 @@
     },
 
     /* ---------- clip properties ---------- */
+
+    /*
+     * Speed ramps. Sets (or, with keys null, clears) the speed ramp of the clips and of the clips linked to
+     * them, so picture and sound ramp together. `keys` is a list of { t, v } (percent), or a function that
+     * takes the clip's length and returns one. A ramp that would run past the end of the media shortens the
+     * clip to fit.
+     */
+    setSpeedRamp(ids, keys, label) {
+      const seen = new Set();
+      const list = [];
+      ids.map(AVP.findClip).filter(Boolean).forEach((c) => {
+        [c].concat(AVP.partners(c)).forEach((x) => {
+          const m = AVP.findMedia(x.mediaId);
+          if (seen.has(x.id) || x.kind !== 'media' || !m || m.type === 'image') return;
+          seen.add(x.id);
+          list.push(x);
+        });
+      });
+      if (!list.length) return AVP.toast('Select a video or audio clip first', 'warn');
+      AVP.pushUndo();
+      let shortened = 0;
+      list.forEach((c) => {
+        if (keys) {
+          const k = typeof keys === 'function' ? keys(c.duration) : keys;
+          c.keys.speed = k
+            .map((p) => ({ t: AVP.clamp(p.t, 0, c.duration), v: AVP.clamp(p.v, AVP.RAMP_MIN, AVP.RAMP_MAX) }))
+            .sort((a, b) => a.t - b.t);
+        } else {
+          delete c.keys.speed;
+        }
+        if (E.fitToSource(c)) shortened++;
+      });
+      AVP.toast(
+        (keys ? (label ? `Speed ramp: ${label}` : 'Speed ramp changed') : 'Speed ramp removed') +
+          (shortened ? '. Shortened to fit the end of the media.' : ''),
+        shortened ? 'warn' : 'ok'
+      );
+      AVP.refresh();
+    },
+
+    // Shortens a clip that would play past the end of its file. Returns true when it did.
+    fitToSource(c) {
+      const m = AVP.findMedia(c.mediaId);
+      if (!m || m.type === 'image' || !(m.duration > 0)) return false;
+      const avail = Math.max(0.1, m.duration - c.inPoint);
+      if (AVP.srcOffset(c, c.duration) <= avail + 1e-3) return false;
+      const d = Math.max(0.1, AVP.timeForSrc(c, avail));
+      c.keys = Object.assign({}, c.keys, AVP.rangeKeys(c.keys, 0, d));
+      c.duration = d;
+      return true;
+    },
 
     setSpeed(ids, speed) {
       const sp = AVP.clamp(speed, 0.1, 16);

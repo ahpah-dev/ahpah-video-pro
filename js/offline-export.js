@@ -106,7 +106,7 @@
       if (!m || m.type !== 'video' || AVP.trackKind(c.track) !== 'video') continue;
       const n = AVP.monitor.getSource(c);
       if (!n || !n.el) continue;
-      const target = Math.max(0, c.inPoint + (t - c.start) * (c.speed || 1)) + SEEK_BIAS;
+      const target = Math.max(0, c.inPoint + AVP.srcOffset(c, t - c.start)) + SEEK_BIAS;
       waits.push(seekTo(n.el, Math.min(target, (n.el.duration || Infinity) - 0.0005)));
     }
     await Promise.all(waits);
@@ -202,7 +202,13 @@
       const snd = AVP.soundOf(c);
       const src = ctx.createBufferSource();
       src.buffer = buf;
-      src.playbackRate.value = sp;
+      const ramped = AVP.hasRamp(c);
+      src.playbackRate.value = ramped ? clamp(AVP.speedAt(c, s0 - c.start), 0.0625, 16) : sp;
+      if (ramped) {
+        // A speed ramp: the playback rate follows the curve over the part of the clip in this chunk.
+        const curve = sampleCurve((t) => clamp(AVP.speedAt(c, t - c.start), 0.0625, 16), s0, s1);
+        src.playbackRate.setValueCurveAtTime(curve, s0 - a, s1 - s0);
+      }
       // Essential Sound: low cut, presence and compression, as in the live mix.
       const hp = ctx.createBiquadFilter();
       hp.type = 'highpass';
@@ -236,7 +242,12 @@
       g.connect(send);
       send.connect(roomIn);
       // Start at the clip's place in this chunk (or at the chunk start if the clip began earlier).
-      src.start(s0 - a, c.inPoint + (s0 - c.start) * sp, (s1 - s0) * sp);
+      if (ramped) {
+        src.start(s0 - a, c.inPoint + AVP.srcOffset(c, s0 - c.start));
+        src.stop(s1 - a);
+      } else {
+        src.start(s0 - a, c.inPoint + (s0 - c.start) * sp, (s1 - s0) * sp);
+      }
     }
     return ctx.startRendering();
   }

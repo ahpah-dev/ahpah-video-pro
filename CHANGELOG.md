@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.25.0
+
+### Speed ramps (time remapping)
+- New Time Remapping section in Effect Controls for video and audio clips: seven presets (slow down, speed
+  up, hero moment, impact, slow to a crawl, pulse, rush through the middle) and a speed graph you can edit.
+  Click to add a point, drag to move it, double-click to remove it. Speeds run from 10% to 1600%, joined
+  by straight lines so the picture eases between them.
+- A ramp is stored as speed keyframes on the clip, in clip time, so cuts, trims, moves and changes of the
+  clip's constant speed keep it. The source position is the area under the curve (`AVP.srcOffset`), and
+  cutting a ramped clip loses no source time and shows no jump (tested).
+- The linked audio clip gets the same ramp. If a ramp would run past the end of the file, the clip is shortened to fit.
+- The preview follows the ramp (playback rate changes as it plays) and so does the frame-by-frame MP4
+  export: the video seeks to the ramped source time, and the sound's playback rate follows the curve.
+  Checked in an 8 second export: the video position stayed within 3 ms of the curve, advancing a full frame
+  per frame at 100% and a quarter frame at 25%.
+- Ramped clips are labelled "ramp" on the timeline. The sound is heard at the speed it plays at, so pitch
+  rises and falls with the ramp (in the preview too, to match the export).
+
+### Title animations
+- 12 new entrance animations (23 in all): letter slide from the left and the right, letter zoom, letter
+  flip, elastic, blur in, spread, neon flicker, jitter, rainbow, word rise and word fade.
+- Exit effects: any entrance (except the ones that keep moving) can play backwards at the end of the title,
+  first letter leaving first, with its own length. New Exit effect and Exit length rows under Animation.
+- Seven new title presets with animations: Pop In Fade Out, Typewriter Caption, Glitch Intro, Neon Sign,
+  Cinematic Spread, Rainbow Bounce and Slide-in Lower Third.
+- Typewriter and neon flicker now leave nothing visible on the last frame of an exit.
+
+### Checked
+- New `tests/ramp-test.js` (17 tests): the speed curve maths, its inverse, cutting, the presets, every
+  animation's start and end state, exits, and the presets.
+
 ## 1.24.0
 
 ### New effects (11)

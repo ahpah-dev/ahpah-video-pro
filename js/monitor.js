@@ -218,7 +218,7 @@
     if (!snd.enabled || !(snd.noiseReduce > 0)) return 1;
     const m = AVP.findMedia(c.mediaId);
     if (!m || !m.env) return 1;
-    const src = c.inPoint + Math.max(0, t - c.start) * (c.speed || 1);
+    const src = c.inPoint + AVP.srcOffset(c, Math.max(0, t - c.start));
     const idx = AVP.clamp(Math.floor(src / m.env.hop), 0, m.env.env.length - 1);
     const level = m.env.env[idx];
     const k = snd.noiseReduce / 100;
@@ -326,14 +326,17 @@
       if (n.el.muted !== silent) n.el.muted = silent;
 
       const el = n.el;
-      const sp = c.speed || 1;
-      if (el.playbackRate !== sp) el.playbackRate = AVP.clamp(sp, 0.0625, 16);
-      const target = Math.max(0, c.inPoint + (t - c.start) * sp);
+      const sp = AVP.speedAt(c, t - c.start); // changes moment to moment on a speed ramp
+      const rate = AVP.clamp(sp, 0.0625, 16);
+      if (Math.abs(el.playbackRate - rate) > 0.002) el.playbackRate = rate;
+      // A ramp is heard at the speed it plays at, as in the export (no pitch correction).
+      if (AVP.hasRamp(c) && el.preservesPitch !== false) el.preservesPitch = false;
+      const target = Math.max(0, c.inPoint + AVP.srcOffset(c, t - c.start));
       if (forward && track) {
         if (el.paused) {
           if (Math.abs(el.currentTime - target) > 0.05) el.currentTime = target;
           el.play().catch(() => {});
-        } else if (Math.abs(el.currentTime - target) > 0.3 * sp) {
+        } else if (Math.abs(el.currentTime - target) > Math.max(0.12, 0.3 * sp)) {
           el.currentTime = target;
         }
       } else {

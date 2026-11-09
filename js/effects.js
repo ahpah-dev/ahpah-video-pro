@@ -372,6 +372,8 @@
     animDur: 0.6, // seconds for one letter (or word, line) to finish its animation
     animDelay: 0, // seconds from the clip's start before the animation begins
     animStagger: 0.04, // seconds between one letter and the next
+    animOut: 'none', // animation that plays at the end of the clip, see AVP.TEXT_OUT_ANIMATIONS
+    animOutDur: 0.5, // seconds for one letter (or word) to finish leaving
   };
 
   /* ---------- fonts ---------- */
@@ -454,6 +456,13 @@
       props: { y: 36 },
     },
     { name: 'Big Number', text: { text: '3', size: 360, bold: true }, props: {} },
+    { name: 'Pop In, Fade Out', text: { text: 'Your Title', size: 130, bold: true, anim: 'elastic', animDur: 0.7, animStagger: 0.05, animOut: 'letter-fade', animOutDur: 0.4 }, props: {} },
+    { name: 'Typewriter Caption', text: { text: 'Typed one letter at a time', size: 64, anim: 'typewriter', animStagger: 0.05, bgColor: '#000000', bgOpacity: 55 }, props: { y: 34 } },
+    { name: 'Glitch Intro', text: { text: 'GLITCH', size: 190, bold: true, color: '#00f0ff', anim: 'glitch', animDur: 0.8, animStagger: 0.06, animOut: 'glitch', animOutDur: 0.5 }, props: {} },
+    { name: 'Neon Sign', text: { text: 'OPEN', size: 220, bold: true, color: '#ff4fd8', stroke: '#ffffff', strokeWidth: 2, anim: 'neon-flicker', animDur: 0.8, animStagger: 0.12 }, props: {} },
+    { name: 'Cinematic Spread', text: { text: 'A FILM BY YOU', size: 84, anim: 'spread', animDur: 1.4, animStagger: 0.02, animOut: 'letter-fade', animOutDur: 0.6 }, props: {} },
+    { name: 'Rainbow Bounce', text: { text: 'Party time!', size: 150, bold: true, anim: 'rainbow', animStagger: 0.05 }, props: {} },
+    { name: 'Slide-in Lower Third', text: { text: 'Name Surname\nRole or subtitle', size: 60, align: 'left', bold: true, bgColor: '#000000', bgOpacity: 60, anim: 'letter-slide-left', animDur: 0.5, animStagger: 0.015, animOut: 'letter-slide-right', animOutDur: 0.4 }, props: { x: -36, y: 34 } },
     { name: 'Credits', text: { text: 'Directed by\nYour Name', size: 72, lineHeight: 1.5 }, props: {} },
     {
       name: 'Caption Box',
@@ -477,8 +486,27 @@
     { v: 'letter-spin', label: 'Letter spin' },
     { v: 'glitch', label: 'Glitch in' },
     { v: 'wave', label: 'Wave (keeps moving)' },
+    { v: 'letter-slide-left', label: 'Letter slide (from the left)' },
+    { v: 'letter-slide-right', label: 'Letter slide (from the right)' },
+    { v: 'letter-zoom', label: 'Letter zoom (shrinks into place)' },
+    { v: 'letter-flip', label: 'Letter flip' },
+    { v: 'elastic', label: 'Elastic (springy pop)' },
+    { v: 'blur-in', label: 'Blur in (focus pull)' },
+    { v: 'spread', label: 'Spread (letters fly out from the middle)' },
+    { v: 'neon-flicker', label: 'Neon flicker on' },
+    { v: 'jitter', label: 'Jitter (keeps shaking)' },
+    { v: 'rainbow', label: 'Rainbow (keeps cycling colour)' },
+    { v: 'word-rise', label: 'Word rise' },
+    { v: 'word-fade', label: 'Word fade' },
     { v: 'wipe-reveal', label: 'Wipe reveal (whole text)' },
   ];
+
+  // Animations that can play at the end of a title: the entrances played backwards, last letter in, first out.
+  // The ones that keep moving (wave, jitter, rainbow) make no sense as an exit.
+  AVP.TEXT_OUT_ANIMATIONS = AVP.TEXT_ANIMATIONS.filter((a) => ['wave', 'jitter', 'rainbow'].indexOf(a.v) < 0);
+
+  // Animations that move whole words rather than letters.
+  AVP.textAnimByWord = (type) => type === 'word-pop' || type === 'word-rise' || type === 'word-fade';
 
   // Easing curves. out: slows down at the end. back: overshoots and settles. bounce: drops and bounces.
   AVP.ease = {
@@ -519,10 +547,61 @@
   AVP.textUnitState = function (type, localT, k, o) {
     const start = o.delay + k * o.stagger;
     const p = clamp01((localT - start) / o.dur);
-    const st = { alpha: 1, s: 1, dx: 0, dy: 0, rot: 0 };
+    const st = { alpha: 1, s: 1, dx: 0, dy: 0, rot: 0, sx: 1, blur: 0, hue: null };
     switch (type) {
       case 'typewriter':
-        st.alpha = localT >= start ? 1 : 0;
+        st.alpha = localT > start ? 1 : 0; // strictly after, so played backwards (an exit) the last letter is gone at the end
+        break;
+      case 'letter-slide-left':
+        st.dx = -(1 - AVP.ease.out(p)) * o.size * 1.4;
+        st.alpha = clamp01(p * 2);
+        break;
+      case 'letter-slide-right':
+        st.dx = (1 - AVP.ease.out(p)) * o.size * 1.4;
+        st.alpha = clamp01(p * 2);
+        break;
+      case 'letter-zoom':
+        st.s = 1 + (1 - AVP.ease.out(p)) * 2.5;
+        st.alpha = p;
+        break;
+      case 'letter-flip':
+        st.sx = Math.sin((AVP.ease.out(p) * Math.PI) / 2); // turns from edge-on to face-on
+        st.alpha = clamp01(p * 3);
+        break;
+      case 'elastic':
+        st.s = p <= 0 ? 0 : p >= 1 ? 1 : Math.pow(2, -10 * p) * Math.sin(((p * 10 - 0.75) * 2 * Math.PI) / 3) + 1;
+        st.alpha = clamp01(p * 5);
+        break;
+      case 'blur-in':
+        st.blur = (1 - p) * o.size * 0.25;
+        st.alpha = p;
+        break;
+      case 'spread':
+        st.dx = (1 - AVP.ease.out(p)) * (k - ((o.total || 1) - 1) / 2) * o.size * 0.9;
+        st.alpha = clamp01(p * 2);
+        break;
+      case 'neon-flicker':
+        if (localT <= start) st.alpha = 0;
+        else if (p < 1) st.alpha = noise01(k, Math.floor(localT * 30)) < p * 0.7 + 0.15 ? 1 : 0.1;
+        break;
+      case 'jitter':
+        if (localT < start) st.alpha = 0;
+        else {
+          const f = Math.floor(localT * 20);
+          st.dx = (noise01(k, f) - 0.5) * o.size * 0.07;
+          st.dy = (noise01(k + 5, f) - 0.5) * o.size * 0.07;
+        }
+        break;
+      case 'rainbow':
+        if (localT < start) st.alpha = 0;
+        else st.hue = (localT * 180 + k * 25) % 360;
+        break;
+      case 'word-rise':
+        st.dy = (1 - AVP.ease.out(p)) * o.size * 0.6;
+        st.alpha = p;
+        break;
+      case 'word-fade':
+        st.alpha = p;
         break;
       case 'letter-pop':
       case 'word-pop':
@@ -696,6 +775,95 @@
     const def = AVP.effectParamDef(fx.type, name);
     const base = fx.params[name] !== undefined ? fx.params[name] : def ? def.def : 0;
     return AVP.evalKeys(c.keys && c.keys['fx:' + fx.id + ':' + name], absT - c.start, base);
+  };
+
+  /* ---------- speed ramps (time remapping) ---------- */
+
+  /*
+   * A clip plays at c.speed, times a ramp: the keyframes in c.keys.speed, in percent (100 = no change),
+   * joined by straight lines, so the picture eases from one speed to the next. With no keys the clip plays
+   * at the constant speed c.speed, exactly as before. Key times are clip-local seconds, so cuts, trims and
+   * speed changes move them with the clip like any other keyframe.
+   */
+  AVP.RAMP_MIN = 10; // percent: slowest a ramp may go
+  AVP.RAMP_MAX = 1600; // percent: fastest
+
+  AVP.hasRamp = function (c) {
+    return !!(c && c.keys && c.keys.speed && c.keys.speed.length);
+  };
+
+  // Speed (source seconds per timeline second) at clip-local time tl.
+  AVP.speedAt = function (c, tl) {
+    const sp = c.speed || 1;
+    if (!AVP.hasRamp(c)) return sp;
+    return (sp * AVP.evalKeys(c.keys.speed, tl, 100)) / 100;
+  };
+
+  // Source seconds used by the first tl seconds of the clip: the area under the speed curve.
+  // Before the first key and after the last the speed holds, so a negative tl (a clip trimmed longer at its
+  // head) is just as exact.
+  AVP.srcOffset = function (c, tl) {
+    const sp = c.speed || 1;
+    if (!AVP.hasRamp(c)) return tl * sp;
+    const list = c.keys.speed;
+    const f = sp / 100;
+    if (tl <= 0) return tl * f * list[0].v;
+    let acc = 0;
+    let t0 = 0;
+    let v0 = list[0].v;
+    if (list[0].t > 0) {
+      const e = Math.min(tl, list[0].t);
+      acc += e * v0;
+      t0 = e;
+      if (e >= tl) return acc * f;
+    }
+    for (let i = 0; i < list.length - 1; i++) {
+      const a = list[i];
+      const b = list[i + 1];
+      if (b.t <= t0 || a.t >= tl) continue;
+      const from = Math.max(a.t, t0);
+      const to = Math.min(b.t, tl);
+      const span = b.t - a.t || 1;
+      const va = a.v + ((b.v - a.v) * (from - a.t)) / span;
+      const vb = a.v + ((b.v - a.v) * (to - a.t)) / span;
+      acc += ((va + vb) / 2) * (to - from);
+      t0 = to;
+      if (to >= tl) return acc * f;
+    }
+    const last = list[list.length - 1];
+    if (tl > Math.max(t0, last.t)) acc += (tl - Math.max(t0, last.t)) * last.v;
+    return acc * f;
+  };
+
+  // How long the clip must run to use `span` source seconds (the inverse of srcOffset).
+  AVP.timeForSrc = function (c, span) {
+    if (!AVP.hasRamp(c)) return span / (c.speed || 1);
+    const minV = Math.max(1, Math.min.apply(null, c.keys.speed.map((k) => k.v)));
+    let lo = 0;
+    let hi = span / (((c.speed || 1) * minV) / 100) + 1;
+    for (let i = 0; i < 50; i++) {
+      const mid = (lo + hi) / 2;
+      if (AVP.srcOffset(c, mid) < span) lo = mid;
+      else hi = mid;
+    }
+    return (lo + hi) / 2;
+  };
+
+  // Speed ramps offered in the Time Remapping section. make(d) returns the keys for a clip d seconds long.
+  const rampKeys = (d, pts) => pts.map(([f, v]) => ({ t: +(f * d).toFixed(4), v }));
+  AVP.SPEED_RAMPS = [
+    { name: 'Slow down (ease out)', make: (d) => rampKeys(d, [[0, 100], [1, 25]]) },
+    { name: 'Speed up (ease in)', make: (d) => rampKeys(d, [[0, 100], [1, 300]]) },
+    { name: 'Hero moment (fast, slow, fast)', make: (d) => rampKeys(d, [[0, 100], [0.3, 100], [0.4, 25], [0.65, 25], [0.75, 100], [1, 100]]) },
+    { name: 'Impact (burst, then settle)', make: (d) => rampKeys(d, [[0, 400], [0.3, 100], [1, 100]]) },
+    { name: 'Slow to a crawl', make: (d) => rampKeys(d, [[0, 100], [0.6, 100], [1, 10]]) },
+    { name: 'Pulse (fast and slow, repeating)', make: (d) => rampKeys(d, [[0, 200], [0.17, 40], [0.33, 200], [0.5, 40], [0.67, 200], [0.83, 40], [1, 200]]) },
+    { name: 'Rush through the middle', make: (d) => rampKeys(d, [[0, 100], [0.25, 100], [0.4, 500], [0.6, 500], [0.75, 100], [1, 100]]) },
+  ];
+
+  // Source seconds a clip uses, so the editor can warn when a ramp would run past the end of the file.
+  AVP.sourceSpan = function (c) {
+    return AVP.srcOffset(c, c.duration);
   };
 
   /* ---------- transitions: timing ---------- */

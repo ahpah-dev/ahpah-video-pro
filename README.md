@@ -88,11 +88,22 @@ Dragging a transition onto a cut shows where it will land:
   not fit the track (a video transition over an audio clip). Clip menu: Transition at Start / End.
 - **Titles**: title clips with a font picker that lists the fonts installed on this computer,
   and an "Add font" button for a .ttf, .otf or .woff file (saved with the project). Size, colour, bold / italic, outline, shadow,
-  background box, alignment, line height and width. Six presets are included.
-- **Text animations**: typewriter (with cursor), letter pop, word pop, letter fade, letter rise, letter drop
-  (bounce), letter spin, glitch in, wave (keeps moving) and a whole-text wipe. Set the effect, the length,
-  a delay and the time between letters under Animation in the Text section, then press Preview animation.
+  background box, alignment, line height and width. Thirteen presets are included, several with animations.
+- **Text animations** (23 entrances): typewriter (with cursor), letter pop, word pop, letter fade, letter rise,
+  letter drop (bounce), letter spin, glitch in, wave (keeps moving), a whole-text wipe, letter slide (from the
+  left or right), letter zoom, letter flip, elastic, blur in, spread (letters fly out from the middle),
+  neon flicker, jitter, rainbow, word rise and word fade. Each title can also have an **exit effect**: the
+  entrance played backwards over the end of the clip, first letter leaving first. Set the effect, length,
+  delay, time between letters, exit effect and exit length under Animation in the Text section, then press
+  Preview animation.
 - **Speed**: change a clip's speed from 10% to 1600% (Ctrl+R).
+- **Speed ramps (time remapping)**: select a video or audio clip and open Time Remapping in Effect Controls.
+  Pick a preset (slow down, speed up, hero moment, impact, slow to a crawl, pulse, rush through the middle) or
+  draw your own on the speed graph: click to add a point, drag it to change its time and speed (10% to 1600%),
+  double-click to remove it. The speed eases in a straight line from one point to the next. The clip keeps its
+  place and length on the timeline and uses more or less of the file; if a ramp would run past the end of the file the clip is
+  shortened to fit. Picture and sound (the linked audio clip) ramp together, cuts and trims keep the ramp, and
+  the export follows it frame by frame. Sound changes pitch with speed.
 - **Playback**: play, pause, reverse, frame stepping and jumps to edit points, at a
   choice of preview resolution (full, half or quarter). Drawing is paced to the display.
 - **Export**: MP4 (H.264 with AAC) is the default. It is drawn frame by frame and encoded with WebCodecs,
@@ -186,7 +197,7 @@ This is an early, browser-based editor. Known limits:
 - Essential Sound loudness is measured per clip with BS.1770 K-weighting. Noise reduction is a
   gate, not spectral denoising, and the reverb is a synthetic room, not a sampled hall.
 - Ducking follows the timeline, so the music lowers while a dialogue clip plays.
-- Speed ramps and chroma key are not included.
+- Chroma key is not included.
 - A 3D LUT is saved inside the project file, so large LUTs make large project files.
 - Only three video and three audio tracks are created by default (more can be added).
 - The preview is drawn at the chosen resolution; export always uses the chosen export size.

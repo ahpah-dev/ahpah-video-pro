@@ -282,3 +282,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 .bin-item:hover { border-color: #505050; background: #2e2e2e; }
 .bin-item.selected { background: #26384c; border-color: var(--accent); box-shadow: none; }
 .lib-item { border-radius: 4px; }
+
+/* ---------- speed ramp graph ---------- */
+
+.ramp-canvas { display: block; width: 100%; margin: 6px 0 4px; border-radius: 3px; cursor: crosshair; touch-action: none; }
+.ramp-btns { display: flex; gap: 6px; margin: 4px 0; }

@@ -156,6 +156,7 @@
     }
     let label = kind === 'title' ? c.text.text.split('\n')[0] || 'Title' : kind === 'shape' ? (c.shape.type === 'ellipse' ? 'Ellipse' : 'Rectangle') : m ? m.name : 'Missing media';
     if (c.speed && c.speed !== 1) label += `  ${Math.round(c.speed * 100)}%`;
+    if (AVP.hasRamp(c)) label += '  ramp';
     if (c.fx && c.fx.length) label += `  fx${c.fx.length}`;
     const name = m ? m.name : c.kind === 'title' ? 'Title' : 'Missing media';
     return (
@@ -418,7 +419,7 @@
         drag.moved = true;
       }
     } else if (drag.kind === 'trim-in') {
-      const lo = Math.max(-lead.inPoint / (lead.speed || 1), -lead.start);
+      const lo = Math.max(-lead.inPoint / AVP.speedAt(lead, 0), -lead.start);
       const hi = lead.duration - 0.1;
       let x = clamp(dx, lo, hi);
       x += snapDelta([lead.start + x]);
@@ -427,8 +428,7 @@
     } else {
       // trim-out: cannot run past the end of the source (unless it is a still or title)
       const m = AVP.findMedia(lead.mediaId);
-      const sp = lead.speed || 1;
-      const maxDur = !m || m.type === 'image' ? Infinity : Math.max(0.1, (m.duration - lead.inPoint) / sp);
+      const maxDur = !m || m.type === 'image' ? Infinity : Math.max(0.1, AVP.timeForSrc(lead, m.duration - lead.inPoint));
       const lo = 0.1 - lead.duration;
       const hi = maxDur - lead.duration;
       const end = lead.start + lead.duration;

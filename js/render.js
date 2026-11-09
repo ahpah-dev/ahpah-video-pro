@@ -117,7 +117,7 @@
   // The units are laid out where the whole line would put them, so the finished text matches the static one.
   function drawAnimatedUnits(L, T, lines, g) {
     const { size, lh, blockH, blockW, align, localT, unit } = g;
-    const byWord = T.anim === 'word-pop';
+    const byWord = AVP.textAnimByWord(T.anim !== 'none' ? T.anim : T.animOut);
     const o = {
       dur: Math.max(0.05, +T.animDur || 0.6),
       delay: Math.max(0, +T.animDelay || 0),
@@ -140,18 +140,26 @@
       });
     });
     const total = k;
+    o.total = total;
     const typing = T.anim === 'typewriter';
+    // The exit plays the entrance backwards over the last moments of the clip, first letter leaving first.
+    const outType = T.animOut || 'none';
+    const oo = { dur: Math.max(0.05, +T.animOutDur || 0.5), delay: 0, stagger: o.stagger, size, total };
+    const outLen = (Math.max(1, total) - 1) * oo.stagger + oo.dur;
+    const outStart = (g.clipDur || Infinity) - outLen;
     let last = null;
     units.forEach((u) => {
       if (u.space) return;
       if (typing && localT >= o.delay + u.k * o.stagger) last = u;
-      const st = AVP.textUnitState(T.anim, localT, u.k, o);
+      let st = AVP.textUnitState(T.anim, localT, u.k, o);
+      if (outType !== 'none' && localT >= outStart) st = AVP.textUnitState(outType, outLen - (localT - outStart), total - 1 - u.k, oo);
       if (st.alpha <= 0.001) return;
       L.save();
       L.globalAlpha = L.globalAlpha * clamp01(st.alpha);
+      if (st.blur > 0.3 && HAS_FILTER) L.filter = `blur(${st.blur.toFixed(1)}px)`;
       L.translate(u.x + u.w / 2 + st.dx, u.y + st.dy);
       L.rotate(st.rot);
-      L.scale(st.s, st.s);
+      L.scale(st.s * st.sx, st.s);
       L.textAlign = 'center';
       if (T.shadow) {
         L.shadowColor = 'rgba(0,0,0,0.6)';
@@ -164,7 +172,7 @@
         L.lineJoin = 'round';
         L.strokeText(u.text, 0, 0);
       }
-      L.fillStyle = T.color;
+      L.fillStyle = st.hue != null ? `hsl(${st.hue.toFixed(0)}, 90%, 62%)` : T.color;
       L.fillText(u.text, 0, 0);
       L.restore();
     });
@@ -230,10 +238,15 @@
     const align = T.align === 'left' || T.align === 'right' ? T.align : 'center';
     L.textAlign = align;
     const anim = T.anim || 'none';
+    const outAnim = T.animOut || 'none';
     const localT = t - c.start;
-    if (anim === 'wipe-reveal') {
+    if (anim === 'wipe-reveal' || (anim === 'none' && outAnim === 'wipe-reveal')) {
       // The whole block is uncovered from the left, so the text wipes on in one piece.
-      const p = AVP.ease.out(clamp01((localT - (+T.animDelay || 0)) / Math.max(0.05, +T.animDur || 0.6)));
+      let p = anim === 'wipe-reveal' ? AVP.ease.out(clamp01((localT - (+T.animDelay || 0)) / Math.max(0.05, +T.animDur || 0.6))) : 1;
+      if (outAnim === 'wipe-reveal') {
+        const od = Math.max(0.05, +T.animOutDur || 0.5);
+        p = Math.min(p, 1 - AVP.ease.out(clamp01((localT - (c.duration - od)) / od)));
+      }
       if (p <= 0) {
         L.restore();
         return;
@@ -241,8 +254,8 @@
       L.beginPath();
       L.rect(-blockW / 2 - size, -blockH / 2 - size, (blockW + size * 2) * p, blockH + size * 2);
       L.clip();
-    } else if (anim !== 'none') {
-      drawAnimatedUnits(L, T, lines, { size, lh, blockH, blockW, align, localT, unit });
+    } else if (anim !== 'none' || outAnim !== 'none') {
+      drawAnimatedUnits(L, T, lines, { size, lh, blockH, blockW, align, localT, unit, clipDur: c.duration });
       L.restore();
       return;
     }
