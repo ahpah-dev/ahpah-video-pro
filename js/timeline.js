@@ -254,9 +254,49 @@
     return Math.max(0, AVP.snapFrame((clientX - rulerLaneLeft()) / S.zoom));
   }
 
+  // Playhead magnet: when the pointer comes within a few pixels of a marker, the playhead locks onto
+  // the marker and the view centres on it. It stays there until the pointer moves away.
+  const MARKER_LOCK_PX = 8;
+  const MARKER_RELEASE_PX = 18;
+  let scrubLock = null; // { marker, x } while the playhead is held on a marker
+
+  function centreOn(t) {
+    const sc = dom.scroll;
+    if (!sc) return;
+    const x = HEAD_W + t * S.zoom;
+    sc.scrollLeft = Math.max(0, x - (sc.clientWidth + HEAD_W) / 2);
+  }
+
   function scrubTo(clientX) {
-    S.playhead = timeAtClientX(clientX);
+    if (scrubLock) {
+      if (Math.abs(clientX - scrubLock.x) <= MARKER_RELEASE_PX) {
+        S.playhead = scrubLock.marker.t;
+        updatePlayhead();
+        return;
+      }
+      scrubLock = null;
+    }
+    const raw = timeAtClientX(clientX);
+    const marker = S.snap ? AVP.nearestMarker(raw, MARKER_LOCK_PX / S.zoom) : null;
+    if (marker) {
+      scrubLock = { marker, x: clientX };
+      S.playhead = marker.t;
+      centreOn(marker.t);
+    } else {
+      S.playhead = raw;
+    }
     updatePlayhead();
+  }
+
+  // Next or previous marker from the playhead: moves there and centres the timeline on it.
+  function gotoMarker(dir) {
+    const list = S.markers.slice().sort((a, b) => a.t - b.t);
+    const eps = 1e-3;
+    const m = dir > 0 ? list.find((x) => x.t > S.playhead + eps) : list.slice().reverse().find((x) => x.t < S.playhead - eps);
+    if (!m) return AVP.toast(dir > 0 ? 'No later marker' : 'No earlier marker', 'warn');
+    AVP.monitor.goTo(m.t);
+    centreOn(m.t);
+    render();
   }
 
   function trackAtY(y) {
@@ -493,6 +533,7 @@
     if (e.target.closest('.tl-row.ruler')) {
       AVP.monitor.stop();
       drag = { kind: 'scrub' };
+      scrubLock = null;
       scrubTo(e.clientX);
       e.preventDefault();
       return;
@@ -544,6 +585,7 @@
       if (!e.shiftKey) AVP.select([], false);
       AVP.monitor.stop();
       drag = { kind: 'scrub' };
+      scrubLock = null;
       scrubTo(e.clientX);
       render();
       AVP.refreshPanels();
@@ -998,5 +1040,6 @@
     fit,
     updateToolbar,
     rulerMenu,
+    gotoMarker,
   };
 })();

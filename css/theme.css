@@ -286,7 +286,7 @@ input[type=color] { border: 1px solid #111; border-radius: 2px; box-shadow: none
 
 /* Parameter rows: stopwatch, label, slider, value, diamond */
 .lum-body .fx-row {
-  grid-template-columns: 12px 92px minmax(0, 1fr) 46px 12px;
+  grid-template-columns: 12px 92px minmax(0, 1fr) 78px 12px;
   gap: 7px;
   margin: 4px 0;
 }

@@ -60,6 +60,14 @@ const test = (name, fn) => tests.push({ name, fn });
 
 /* ---------- edit rules ---------- */
 
+test('the nearest marker is found only within the tolerance', () => {
+  S.markers = [{ id: 'm1', t: 2 }, { id: 'm2', t: 5 }];
+  assert.strictEqual(AVP.nearestMarker(2.05, 0.1).id, 'm1', 'just past a marker');
+  assert.strictEqual(AVP.nearestMarker(3, 0.1), null, 'between markers, far from both');
+  assert.strictEqual(AVP.nearestMarker(4.95, 0.1).id, 'm2');
+  S.markers = [];
+});
+
 test('partners are clips with the same link that overlap in time', () => {
   reset([clip('V1', 0, 4, 'L', 0), clip('A1', 0, 4, 'L', 0), clip('A1', 6, 2, 'L', 0), clip('A2', 0, 4, null, 0)]);
   const v = S.clips[0];

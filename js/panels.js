@@ -82,13 +82,15 @@
     const keyed = !!(c.keys[key] && c.keys[key].length);
     const unit = opts.unit || '';
     const shown = Math.round(value * 10) / 10;
+    const hard = opts.hard || [opts.min, opts.max];
     const onKey = keyed ? ' on' : '';
     return (
       `<div class="fx-row" data-key="${key}">` +
       `<button class="kf-watch${onKey}" data-kf="${key}" title="Toggle keyframes for ${esc(label)}"></button>` +
       `<span class="fx-label">${esc(label)}</span>` +
       `<input type="range" data-param="${key}" data-def="${def}" min="${opts.min}" max="${opts.max}" step="${opts.step || 1}" value="${value}">` +
-      `<output>${shown}${unit}</output>` +
+      // The value box takes typed numbers. Typed values may go past the slider's range, within the hard limits.
+      `<span class="num-wrap"><input type="text" class="num-in" inputmode="decimal" data-num="${key}" data-lo="${hard[0]}" data-hi="${hard[1]}" title="Type a value, then press Enter" value="${shown}"><span class="num-unit">${esc(unit)}</span></span>` +
       `<button class="kf-diamond${keyed ? ' on' : ''}" data-kfkey="${key}" title="Add or remove a keyframe at the playhead"${keyed ? '' : ' disabled'}></button>` +
       `</div>`
     );
@@ -130,10 +132,10 @@
     if (!isAudio) {
       html +=
         `<div class="fx-group">${sectionHead('Motion')}` +
-        paramRow(c, 'x', 'Position X', 0, { min: -100, max: 100, unit: '%' }) +
-        paramRow(c, 'y', 'Position Y', 0, { min: -100, max: 100, unit: '%' }) +
-        paramRow(c, 'scale', 'Scale', 100, { min: 0, max: 400, unit: '%' }) +
-        paramRow(c, 'rotation', 'Rotation', 0, { min: -360, max: 360, unit: '°' }) +
+        paramRow(c, 'x', 'Position X', 0, { min: -100, max: 100, unit: '%', hard: [-1000, 1000] }) +
+        paramRow(c, 'y', 'Position Y', 0, { min: -100, max: 100, unit: '%', hard: [-1000, 1000] }) +
+        paramRow(c, 'scale', 'Scale', 100, { min: 0, max: 400, unit: '%', hard: [0, 10000] }) +
+        paramRow(c, 'rotation', 'Rotation', 0, { min: -360, max: 360, unit: '°', hard: [-36000, 36000] }) +
         paramRow(c, 'opacity', 'Opacity', 100, { min: 0, max: 100, unit: '%' }) +
         `</div>`;
     }
@@ -212,6 +214,47 @@
     );
   }
 
+  // Keeps the typed value box next to a slider in step with the slider while it is dragged.
+  function syncValueBox(slider) {
+    const num = slider.closest('.fx-row') && slider.closest('.fx-row').querySelector('input[data-num]');
+    if (num && document.activeElement !== num) num.value = Math.round(+slider.value * 10) / 10;
+  }
+
+  // Typed values: Enter (or leaving the box) applies the number, Escape puts the old value back.
+  function bindValueBoxes(root, c) {
+    root.querySelectorAll('input[data-num]').forEach((box) => {
+      const key = box.dataset.num;
+      const lo = parseFloat(box.dataset.lo);
+      const hi = parseFloat(box.dataset.hi);
+      const current = () => {
+        const cur = AVP.findClip(c.id);
+        return cur ? Math.round(readParam(cur, key) * 10) / 10 : null;
+      };
+      box.addEventListener('focus', () => box.select());
+      box.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') box.blur();
+        else if (e.key === 'Escape') {
+          const was = current();
+          if (was !== null) box.value = was;
+          box.blur();
+        }
+      });
+      box.addEventListener('change', () => {
+        const cur = AVP.findClip(c.id);
+        if (!cur) return;
+        const v = parseFloat(String(box.value).replace(',', '.'));
+        if (!isFinite(v)) {
+          AVP.toast('Type a number, for example 120', 'warn');
+          box.value = current();
+          return;
+        }
+        AVP.pushUndo();
+        writeParam(cur, key, Math.min(hi, Math.max(lo, v)));
+        AVP.refresh();
+      });
+    });
+  }
+
   // Asks for a font file and uses it for the title. The font is saved with the project.
   function pickFontFile(clipId) {
     const input = document.createElement('input');
@@ -249,13 +292,13 @@
         const cur = AVP.findClip(c.id);
         if (!cur) return;
         writeParam(cur, key, +inp.value);
-        const out = inp.parentElement.querySelector('output');
-        if (out) out.textContent = Math.round(+inp.value * 10) / 10 + (out.textContent.match(/[^\d.\-]+$/) || [''])[0];
+        syncValueBox(inp);
         // Do not rebuild this panel here: that would destroy the slider being dragged.
         AVP.timeline.render();
         AVP.monitor.draw();
       });
     });
+    bindValueBoxes(controlsEl, c);
     controlsEl.querySelectorAll('[data-kf]').forEach((b) => b.addEventListener('click', () => toggleKeyframing(c, b.dataset.kf)));
     controlsEl.querySelectorAll('[data-kfkey]').forEach((b) =>
       b.addEventListener('click', () => toggleKeyAtPlayhead(c, b.dataset.kfkey))
@@ -566,11 +609,11 @@
         const cur = AVP.findClip(c.id);
         if (!cur) return;
         writeParam(cur, key, +inp.value);
-        const out = inp.parentElement.querySelector('output');
-        if (out) out.textContent = Math.round(+inp.value * 10) / 10 + (out.textContent.match(/[^\d.\-]+$/) || [''])[0];
+        syncValueBox(inp);
         AVP.monitor.draw();
       });
     });
+    bindValueBoxes(root, c);
     root.querySelectorAll('[data-kf]').forEach((b) => b.addEventListener('click', () => toggleKeyframing(c, b.dataset.kf)));
     root.querySelectorAll('[data-kfkey]').forEach((b) => b.addEventListener('click', () => toggleKeyAtPlayhead(c, b.dataset.kfkey)));
   }

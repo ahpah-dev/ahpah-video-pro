@@ -460,7 +460,7 @@ input[type=range] { accent-color: var(--accent); height: 14px; }
 .fx-kv input[type=number], .fx-kv select { width: 120px; height: 22px; }
 .fx-row {
   display: grid;
-  grid-template-columns: 14px 86px minmax(0, 1fr) 50px 15px;
+  grid-template-columns: 14px 86px minmax(0, 1fr) 78px 15px;
   align-items: center;
   gap: 6px;
   margin: 5px 0;
@@ -992,3 +992,49 @@ kbd {
   padding: 1px 5px;
   border-radius: 2px;
 }
+
+/* Typed values next to sliders (Effect Controls and Lumetri) */
+.num-wrap { display: inline-flex; align-items: center; justify-content: flex-end; gap: 2px; min-width: 0; }
+.num-in {
+  width: 50px;
+  min-width: 0;
+  height: 20px;
+  padding: 0 4px;
+  text-align: right;
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 11px;
+  color: var(--pr-value, #62b1ff);
+  background: #141414;
+  border: 1px solid #3a3a3a;
+  border-radius: 2px;
+}
+.num-in:focus { outline: none; border-color: var(--pr-accent, #2d8ceb); }
+.num-unit { font-size: 10px; color: #8c8c8c; min-width: 8px; }
+
+/* Dockable tabs: drag a tab along its strip, or onto the other panel group */
+.ptab { cursor: grab; }
+.ptab.dragging { opacity: 0.45; cursor: grabbing; }
+.dock-ghost {
+  position: fixed;
+  z-index: 9000;
+  pointer-events: none;
+  padding: 4px 12px;
+  background: #3a3a3a;
+  color: #fff;
+  border: 1px solid var(--pr-accent, #2d8ceb);
+  border-radius: 2px;
+  font-size: 12px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+}
+.dock-mark {
+  position: fixed;
+  z-index: 8999;
+  width: 3px;
+  background: var(--pr-accent, #2d8ceb);
+  border-radius: 2px;
+  pointer-events: none;
+}
+.dock-mark.hidden { display: none; }
+.panel.dock-target { outline: 2px dashed var(--pr-accent, #2d8ceb); outline-offset: -4px; }
+body.dock-drag, body.dock-drag * { user-select: none; cursor: grabbing !important; }

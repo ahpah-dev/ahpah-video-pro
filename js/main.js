@@ -388,8 +388,11 @@
     panelSound: () => AVP.panels.setPanel('sound'),
     panelMixer: () => AVP.panels.setPanel('mixer'),
     addLumetri: () => AVP.edit.addFx(S.selection.slice(), 'lumetri'),
-    prevMarker: () => AVP.monitor.jumpEdit(-1),
-    nextMarker: () => AVP.monitor.jumpEdit(1),
+    resetDocks: () => AVP.docks.reset(),
+    prevEdit: () => AVP.monitor.jumpEdit(-1),
+    nextEdit: () => AVP.monitor.jumpEdit(1),
+    prevMarker: () => AVP.timeline.gotoMarker(-1),
+    nextMarker: () => AVP.timeline.gotoMarker(1),
     clearMarkers: () => {
       if (!S.markers.length) return AVP.toast('There are no markers');
       AVP.pushUndo();
@@ -465,8 +468,10 @@
       label: 'Markers',
       items: [
         { label: 'Add Marker', key: 'M', action: 'addMarker' },
-        { label: 'Previous Marker', key: '↑', action: 'prevMarker' },
-        { label: 'Next Marker', key: '↓', action: 'nextMarker' },
+        { label: 'Previous Marker', action: 'prevMarker' },
+        { label: 'Next Marker', action: 'nextMarker' },
+        { label: 'Previous Edit', key: '↑', action: 'prevEdit' },
+        { label: 'Next Edit', key: '↓', action: 'nextEdit' },
         { sep: true },
         { label: 'Clear All Markers', action: 'clearMarkers' },
       ],
@@ -523,6 +528,7 @@
         { label: 'Audio Clip Mixer', action: 'panelMixer' },
         { label: 'Metadata', action: 'panelMetadata' },
         { sep: true },
+        { label: 'Reset Panel Layout', action: 'resetDocks' },
         { label: 'Editing workspace', action: 'wsEditing' },
         { label: 'Assembly workspace', action: 'wsAssembly' },
         { label: 'Effects workspace', action: 'wsEffects' },
@@ -835,6 +841,7 @@
     AVP.monitor.init();
     AVP.panels.init();
     AVP.layout.init();
+    AVP.docks.init();
     AVP.meters.init();
     document.querySelectorAll('.wtab').forEach((b) => b.addEventListener('click', () => setWorkspace(b.dataset.ws)));
 

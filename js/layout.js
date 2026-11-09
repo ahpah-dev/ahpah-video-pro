@@ -188,7 +188,9 @@
       { passive: false }
     );
     strip.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0 || strip.scrollWidth <= strip.clientWidth) return;
+      // A left-drag on a tab moves the tab (js/docks.js). Drag empty strip space or use the middle button to scroll.
+      if (e.button === 0 && e.target.closest('.ptab')) return;
+      if ((e.button !== 0 && e.button !== 1) || strip.scrollWidth <= strip.clientWidth) return;
       delete strip.dataset.dragged;
       const x0 = e.clientX;
       const s0 = strip.scrollLeft;

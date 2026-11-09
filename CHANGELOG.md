@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.9.0
+
+### Customising the layout
+- Drag a panel tab along its strip to reorder it, or drop it on the other panel group (the left
+  group or the right group) to move it there. The tab and its panel move together.
+- Dropping a tab on a panel body puts it at the end of that group.
+- The arrangement is saved, so it comes back after a reload. Window > Reset Panel Layout restores
+  the default.
+- The tab strips scroll with the middle mouse button or by dragging empty strip space. A left-drag
+  on a tab moves the tab.
+
+### Typing values
+- The number beside each slider in Effect Controls and Lumetri Color is a box you can type in.
+  Press Enter to apply, or Escape to put the old value back.
+- Position, scale and rotation accept values past the slider's range (for example a position of
+  250% or a scale of 300%). Effects keep their limits.
+
+### Markers and the playhead
+- Dragging the playhead on the ruler locks onto a marker when it comes within a few pixels, and
+  the timeline centres on the marker. It stays there until the pointer moves away.
+- Markers > Next Marker and Previous Marker move the playhead to the marker and centre the
+  timeline on it. The up and down arrows still jump between edit points, now labelled Previous Edit
+  and Next Edit in the menu.
+
 ## 1.8.1
 
 ### Trimming and linked clips

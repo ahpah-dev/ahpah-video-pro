@@ -8,7 +8,7 @@
   const AVP = (window.AVP = window.AVP || {});
 
   AVP.APP_NAME = 'AhPah Video Pro';
-  AVP.VERSION = '1.8.1';
+  AVP.VERSION = '1.9.0';
   AVP.EPS = 1e-4;
 
   /* ---------- tracks ---------- */
@@ -149,6 +149,22 @@
   AVP.resetHistory = function () {
     undoStack.length = 0;
     redoStack.length = 0;
+  };
+
+  /* ---------- markers ---------- */
+
+  // The marker closest to time t, if it lies within tol seconds of it.
+  AVP.nearestMarker = function (t, tol) {
+    let best = null;
+    let bestDist = tol;
+    for (const m of S.markers) {
+      const d = Math.abs(m.t - t);
+      if (d <= bestDist) {
+        best = m;
+        bestDist = d;
+      }
+    }
+    return best;
   };
 
   /* ---------- selection ---------- */
