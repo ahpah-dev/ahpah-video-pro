@@ -1115,3 +1115,9 @@ body.dock-drag, body.dock-drag * { user-select: none; cursor: grabbing !importan
   line-height: 1.4;
 }
 .cap-text:focus { outline: none; border-color: var(--pr-accent, #2d8ceb); }
+
+/* Moving the monitors: the dragged header, the drop target and the body while dragging */
+.panel.mdock-dragging { opacity: 0.55; }
+.panel.mdock-target { outline: 2px dashed var(--pr-accent, #2d8ceb); outline-offset: -4px; }
+body.mdock-drag, body.mdock-drag * { user-select: none; cursor: grabbing !important; }
+.panel-head { cursor: grab; }

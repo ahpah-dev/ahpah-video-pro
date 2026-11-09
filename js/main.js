@@ -394,6 +394,7 @@
     panelMixer: () => AVP.panels.setPanel('mixer'),
     addLumetri: () => AVP.edit.addFx(S.selection.slice(), 'lumetri'),
     resetDocks: () => AVP.docks.reset(),
+    resetMonitors: () => AVP.monitorDock.reset(),
     prevEdit: () => AVP.monitor.jumpEdit(-1),
     nextEdit: () => AVP.monitor.jumpEdit(1),
     prevMarker: () => AVP.timeline.gotoMarker(-1),
@@ -539,6 +540,7 @@
         { label: 'Metadata', action: 'panelMetadata' },
         { sep: true },
         { label: 'Reset Panel Layout', action: 'resetDocks' },
+        { label: 'Reset Monitor Positions', action: 'resetMonitors' },
         { label: 'Editing workspace', action: 'wsEditing' },
         { label: 'Assembly workspace', action: 'wsAssembly' },
         { label: 'Effects workspace', action: 'wsEffects' },
@@ -852,6 +854,7 @@
     AVP.panels.init();
     AVP.layout.init();
     AVP.docks.init();
+    AVP.monitorDock.init();
     AVP.meters.init();
     document.querySelectorAll('.wtab').forEach((b) => b.addEventListener('click', () => setWorkspace(b.dataset.ws)));
 

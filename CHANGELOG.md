@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.12.0
+
+### Moving the monitors
+- Drag the Source or Program monitor by its header and drop it on another panel in the top row.
+  On the left or right third of a panel it goes in beside that panel; in the middle it swaps places.
+  A blue line or outline shows where it will land.
+- The moved panel fills the cell it lands in, and its picture and placeholder stay centred in it.
+- The arrangement is saved and comes back after a reload. Window > Reset Monitor Positions restores
+  the default.
+- Column widths stay with the column, so the panel that moves into a wide column takes that width.
+
+### Not included yet
+- The Project and Effect Controls groups still move by their tabs, not by their headers.
+
 ## 1.11.0
 
 ### Captions

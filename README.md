@@ -59,6 +59,7 @@ it, sell it or bundle it however you like.
 - **Captions**: caption clips on the CC track above the video, edited in the Captions panel (text, start and end, style). Import and export SRT subtitle files. Captions are typed or imported; speech is not transcribed automatically.
 - **Panel tabs**: drag a tab to reorder it or to move it to the other panel group. Window > Reset Panel Layout restores the default.
 - **Typed values**: type into the box beside a slider (Effect Controls and Lumetri) and press Enter.
+- **Moving the monitors**: drag the Source or Program header onto another panel in the top row. Drop it on the outer third to place it beside that panel, or in the middle to swap. Window > Reset Monitor Positions restores the default.
 - **Panel sizes**: drag the gaps between the panels to resize them, and drag the gap above the timeline
   to make the timeline taller. Each workspace remembers its sizes. Tab strips scroll by wheel or drag.
   The timeline pans with the middle mouse button or the hand tool, in any direction.
